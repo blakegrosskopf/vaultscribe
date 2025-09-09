@@ -12,16 +12,16 @@ VaultScribe is a **privacy-first, on-device** meeting summarizer. Audio never le
 - **Clarity:** Action-oriented summaries and decisions in seconds.
 
 ## Planned Features (MVP)
-- [ ] **Secure login** with email/password + **TOTP 2FA** (e.g., Authenticator app)  
-- [ ] **Local transcription** (pluggable backend; e.g., whisper.cpp or Vosk)  
+- [ ] **Secure login** with email/password + **2FA** (e.g., Authenticator app)  
+- [ ] **Local transcription** (pluggable backend; whisper.cpp)  
 - [ ] **Local summarization** (pluggable small LLM; e.g., llama.cpp / GPT4All)  
-- [ ] **Encrypted storage** (SQLite/SQLCipher) for transcripts & summaries  
+- [ ] **Encrypted storage** (SQLite) for transcripts & summaries  
 - [ ] **Search & filter** across local summaries  
 - [ ] **Export** redacted notes (TXT/Markdown)
 
 ## Architecture (initial sketch)
-- **App:** Python (FastAPI + simple web UI) OR Electron/Next.js frontend talking to a local API  
-- **Auth:** Local user store with salted hashes + TOTP secrets (hashed)  
+- **App:** Python (simple desktop UI)
+- **Auth:** Local user store with salted hashes + secrets (hashed)  
 - **DB:** Encrypted SQLite (SQLCipher)  
 - **AI Pipeline:** Local STT → chunking → local LLM summary → action items/decisions → encrypted persist  
 - **Encryption:** At-rest (DB) + in-process handling that keeps decrypted data in memory only after auth
