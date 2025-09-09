@@ -10,32 +10,29 @@
 
         FloatLayout:
 
-            # ---------- HEADER (bigger logo, a bit higher) ----------
+            # ---------- HEADER (bigger logo, centered) ----------
             BoxLayout:
                 id: header_box
                 orientation: "vertical"
                 size_hint: None, None
                 width: self.minimum_width
-                height: "170dp"         # total header height
+                height: "200dp"
                 spacing: "6dp"
-                pos_hint: {"center_x": 0.5, "top": 0.92}  # push header up a touch
-
-
-
+                pos_hint: {"center_x": 0.5, "top": 0.92}
                 Image:
-                    source: "../assets/logo.png"   # transparent PNG with waveform
+                    source: "../assets/logo.png"
                     size_hint: None, None
-                    width: "400"                 # ← make bigger/smaller here
+                    width: "400dp"
                     height: "180dp"
                     allow_stretch: True
                     keep_ratio: True
                     mipmap: True
                     nocache: True
 
-            # ---------- CENTER (LOGIN CARD pushed down slightly) ----------
+            # ---------- CENTER (LOGIN CARD) ----------
             MDCard:
                 size_hint: 0.92, None
-                pos_hint: {"center_x": 0.5, "center_y": 0.46}   # ↓ lower the card
+                pos_hint: {"center_x": 0.5, "center_y": 0.44}  # lowered to clear the logo shadow
                 height: self.minimum_height
                 padding: "16dp"
                 radius: [18]
@@ -72,7 +69,7 @@
 
                         BoxLayout:
                             spacing: "6dp"
-                            size_hint_x: 0.5
+                            size_hint_x: 1
                             MDCheckbox:
                                 id: cb_show
                                 size_hint: None, None
@@ -85,11 +82,76 @@
                                 text: "Show Password"
                                 font_size: "14dp"
                                 size_hint_x: None
-                                width: "120dp"
+                                width: "140dp"
                                 halign: "left"
                                 valign: "middle"
 
+                    BoxLayout:
+                        size_hint_y: None
+                        height: "44dp"
+                        spacing: "10dp"
+                        MDFlatButton:
+                            text: "Sign in"
+                            font_size: "20dp"
+                            md_bg_color: "#303F9F"
+                            theme_text_color: "Custom"
+                            text_color: 1,1,1,1
+                            on_press: root.verify(user.text, psswd.text)
+                        MDFlatButton:
+                            text: "Create account"
+                            font_size: "20dp"
+                            md_bg_color: "#1E88E5"
+                            theme_text_color: "Custom"
+                            text_color: 1,1,1,1
+                            on_press: root.manager.current = 'signUp'
+                            on_press: root.clear_fields()
 
+                    # TOTP step (hidden by default)
+                    BoxLayout:
+                        id: totp_box
+                        orientation: "horizontal"
+                        size_hint_y: None
+                        height: 0
+                        opacity: 0
+                        disabled: True
+                        spacing: "10dp"
+                        MDTextField:
+                            id: totp_input
+                            hint_text: "Enter 6-digit 2FA code"
+                            mode: "rectangle"
+                            multiline: False
+                            size_hint_y: None
+                            height: "56dp"
+                        MDFlatButton:
+                            text: "Verify 2FA"
+                            font_size: "18dp"
+                            md_bg_color: "#43A047"
+                            theme_text_color: "Custom"
+                            text_color: 1,1,1,1
+                            on_press: root.verify_totp(totp_input.text)
+
+            # ---------- TAGLINE (short, modern) ----------
+            MDLabel:
+                text: "Private, local meeting summaries, encrypted by default."
+                halign: "center"
+                font_size: "15dp"    # uses KivyMD's default Roboto (modern look)
+                color: 1, 1, 1, 0.9
+                size_hint: 1, None
+                height: "28dp"
+                pos_hint: {"center_x": 0.5, "y": 0.14}
+
+            # ---------- FOOTER ----------
+            MDLabel:
+                text: "[ref=Reset Password]Reset Password[/ref]"
+                markup: True
+                font_size: "15dp"
+                halign: "center"
+                color: 1, 1, 1, 1
+                size_hint: 1, None
+                height: "40dp"
+                pos_hint: {"center_x": 0.5, "y": 0.02}
+                on_ref_press: root.manager.current = 'changeScreen'
+                on_ref_press: root.clear_fields()
 
 
 
@@ -104,19 +166,18 @@
 
         FloatLayout:
 
-            # Header logo
             Image:
                 source: "../assets/logo.png"
-                size_hint: 0.6, None
-                height: "110dp"
+                size_hint: None, None
+                width: "400dp"
+                height: "180dp"
                 allow_stretch: True
                 keep_ratio: True
-                pos_hint: {"center_x": 0.5, "top": 0.88}
+                pos_hint: {"center_x": 0.5, "top": 0.92}
 
-            # Sign-up card
             MDCard:
                 size_hint: 0.92, None
-                pos_hint: {"center_x": 0.5, "center_y": 0.53}
+                pos_hint: {"center_x": 0.5, "center_y": 0.44}  # lowered to clear the logo shadow
                 height: self.minimum_height
                 padding: "16dp"
                 radius: [18]
@@ -163,7 +224,7 @@
                             text: "Show Password"
                             font_size: "14dp"
                             size_hint_x: None
-                            width: "120dp"
+                            width: "140dp"
                             valign: "middle"
 
                     BoxLayout:
@@ -191,7 +252,7 @@
             MDCard:
                 id: totp_enroll_box
                 size_hint: 0.92, None
-                pos_hint: {"center_x": 0.5, "center_y": 0.53}
+                pos_hint: {"center_x": 0.5, "center_y": 0.44}  # keep same vertical spacing
                 height: 0
                 opacity: 0
                 disabled: True
@@ -250,15 +311,16 @@
 
             Image:
                 source: "../assets/logo.png"
-                size_hint: 0.6, None
-                height: "110dp"
+                size_hint: None, None
+                width: "400dp"
+                height: "180dp"
                 allow_stretch: True
                 keep_ratio: True
-                pos_hint: {"center_x": 0.5, "top": 0.88}
+                pos_hint: {"center_x": 0.5, "top": 0.92}
 
             MDCard:
                 size_hint: 0.92, None
-                pos_hint: {"center_x": 0.5, "center_y": 0.55}
+                pos_hint: {"center_x": 0.5, "center_y": 0.46}  # lowered from 0.56
                 height: self.minimum_height
                 padding: "16dp"
                 radius: [18]
@@ -322,15 +384,16 @@
 
             Image:
                 source: "../assets/logo.png"
-                size_hint: 0.6, None
-                height: "110dp"
+                size_hint: None, None
+                width: "400dp"
+                height: "180dp"
                 allow_stretch: True
                 keep_ratio: True
-                pos_hint: {"center_x": 0.5, "top": 0.88}
+                pos_hint: {"center_x": 0.5, "top": 0.92}
 
             MDCard:
                 size_hint: 0.92, None
-                pos_hint: {"center_x": 0.5, "center_y": 0.55}
+                pos_hint: {"center_x": 0.5, "center_y": 0.46}  # lowered from 0.56
                 height: "140dp"
                 padding: "16dp"
                 radius: [18]
