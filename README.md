@@ -2,6 +2,8 @@
 
 **Status:** 🚧 Work in progress — repo scaffold coming soon. No code committed yet.
 
+**TO DO** - Complete the sign-up process and ensure that 2FA works for every feature.
+
 VaultScribe is a **privacy-first, on-device** meeting summarizer. Audio never leaves your machine, summaries are stored in an **encrypted local database**, and results remain unreadable until a **secure login with 2FA** is completed.
 
 ---
