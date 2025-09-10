@@ -1,3 +1,20 @@
+#:import get_color_from_hex kivy.utils.get_color_from_hex
+
+# ---- Unified white-on-focus text field style ----
+<WhiteField@MDTextField>:
+    mode: "rectangle"
+    color_mode: "custom"
+    line_color_normal: get_color_from_hex("#FFFFFF55")   # idle border
+    line_color_focus:  get_color_from_hex("#FFFFFFFF")   # focused border
+    text_color_normal: 1, 1, 1, 1
+    text_color_focus:  1, 1, 1, 1
+    hint_text_color_normal: get_color_from_hex("#FFFFFF99")
+    hint_text_color_focus:  get_color_from_hex("#FFFFFFFF")
+    cursor_color: 1, 1, 1, 1
+    icon_right_color: get_color_from_hex("#FFFFFFFF")    # ignored on older KivyMD but safe
+
+# ===================================================================
+
 <homeScreen>:
     Screen:
         # Solid brand background (#4955AA)
@@ -10,24 +27,17 @@
 
         FloatLayout:
 
-            # ---------- HEADER (bigger logo, centered) ----------
-            BoxLayout:
-                id: header_box
-                orientation: "vertical"
+            # ---------- HEADER (logo aligned with other screens) ----------
+            Image:
+                source: "../assets/logo.png"
                 size_hint: None, None
-                width: self.minimum_width
-                height: "200dp"
-                spacing: "6dp"
+                width: "400dp"
+                height: "180dp"
+                allow_stretch: True
+                keep_ratio: True
+                mipmap: True
+                nocache: True
                 pos_hint: {"center_x": 0.5, "top": 0.92}
-                Image:
-                    source: "../assets/logo.png"
-                    size_hint: None, None
-                    width: "400dp"
-                    height: "180dp"
-                    allow_stretch: True
-                    keep_ratio: True
-                    mipmap: True
-                    nocache: True
 
             # ---------- CENTER (LOGIN CARD) ----------
             MDCard:
@@ -43,21 +53,19 @@
                     size_hint_y: None
                     height: self.minimum_height
 
-                    MDTextField:
+                    WhiteField:
                         id: user
                         hint_text: "Email"
                         icon_right: "account"
-                        mode: "rectangle"
                         multiline: False
                         size_hint_y: None
                         height: "56dp"
 
-                    MDTextField:
+                    WhiteField:
                         id: psswd
                         hint_text: "Password"
                         password: True
                         icon_right: "eye-off"
-                        mode: "rectangle"
                         multiline: False
                         size_hint_y: None
                         height: "56dp"
@@ -115,10 +123,9 @@
                         opacity: 0
                         disabled: True
                         spacing: "10dp"
-                        MDTextField:
+                        WhiteField:
                             id: totp_input
                             hint_text: "Enter 6-digit 2FA code"
-                            mode: "rectangle"
                             multiline: False
                             size_hint_y: None
                             height: "56dp"
@@ -134,7 +141,7 @@
             MDLabel:
                 text: "Private, local meeting summaries, encrypted by default."
                 halign: "center"
-                font_size: "15dp"    # uses KivyMD's default Roboto (modern look)
+                font_size: "15dp"
                 color: 1, 1, 1, 0.9
                 size_hint: 1, None
                 height: "28dp"
@@ -166,6 +173,7 @@
 
         FloatLayout:
 
+            # Header logo (same placement as Home)
             Image:
                 source: "../assets/logo.png"
                 size_hint: None, None
@@ -175,9 +183,10 @@
                 keep_ratio: True
                 pos_hint: {"center_x": 0.5, "top": 0.92}
 
+            # Sign-up card
             MDCard:
                 size_hint: 0.92, None
-                pos_hint: {"center_x": 0.5, "center_y": 0.44}  # lowered to clear the logo shadow
+                pos_hint: {"center_x": 0.5, "center_y": 0.44}
                 height: self.minimum_height
                 padding: "16dp"
                 radius: [18]
@@ -188,21 +197,19 @@
                     size_hint_y: None
                     height: self.minimum_height
 
-                    MDTextField:
+                    WhiteField:
                         id: username_input
                         hint_text: "Email"
                         icon_right: "account"
-                        mode: "rectangle"
                         multiline: False
                         size_hint_y: None
                         height: "56dp"
 
-                    MDTextField:
+                    WhiteField:
                         id: password_input
                         hint_text: "Password"
                         password: True
                         icon_right: "eye-off"
-                        mode: "rectangle"
                         multiline: False
                         size_hint_y: None
                         height: "56dp"
@@ -252,7 +259,7 @@
             MDCard:
                 id: totp_enroll_box
                 size_hint: 0.92, None
-                pos_hint: {"center_x": 0.5, "center_y": 0.44}  # keep same vertical spacing
+                pos_hint: {"center_x": 0.5, "center_y": 0.44}
                 height: 0
                 opacity: 0
                 disabled: True
@@ -277,10 +284,9 @@
                         size_hint_y: None
                         height: "160dp"
 
-                    MDTextField:
+                    WhiteField:
                         id: totp_code_signup
                         hint_text: "Enter 6-digit code"
-                        mode: "rectangle"
                         multiline: False
                         size_hint_y: None
                         height: "56dp"
@@ -295,6 +301,16 @@
                         MDRaisedButton:
                             text: "Cancel"
                             on_release: root.hide_totp_enroll_ui()
+
+            # ---------- SIGN UP TAGLINE ----------
+            MDLabel:
+                text: "Create your secure, local-first account."
+                halign: "center"
+                font_size: "15dp"
+                color: 1, 1, 1, 0.9
+                size_hint: 1, None
+                height: "28dp"
+                pos_hint: {"center_x": 0.5, "y": 0.14}
 
 
 
@@ -320,7 +336,7 @@
 
             MDCard:
                 size_hint: 0.92, None
-                pos_hint: {"center_x": 0.5, "center_y": 0.46}  # lowered from 0.56
+                pos_hint: {"center_x": 0.5, "center_y": 0.44}   # kept low so it clears the logo
                 height: self.minimum_height
                 padding: "16dp"
                 radius: [18]
@@ -331,22 +347,21 @@
                     size_hint_y: None
                     height: self.minimum_height
 
-                    MDTextField:
+                    WhiteField:
                         id: email
                         hint_text: "Email"
                         icon_right: "account"
-                        mode: "rectangle"
                         multiline: False
                         size_hint_y: None
                         height: "56dp"
 
-                    MDTextField:
+                    # Keep placeholder but truly hide it (no extra space)
+                    WhiteField:
                         id: codeinput
                         hint_text: "Verification Code (coming soon)"
-                        mode: "rectangle"
                         multiline: False
                         size_hint_y: None
-                        height: "56dp"
+                        height: 0
                         opacity: 0
                         disabled: True
 
@@ -368,6 +383,17 @@
                             theme_text_color: "Custom"
                             text_color: 1,1,1,1
                             on_press: root.manager.current = 'home'
+
+            # Friendly tagline (same placement as Home)
+            MDLabel:
+                text: "Lost your key? Reset it securely."
+                halign: "center"
+                font_size: "15dp"
+                color: 1, 1, 1, 0.9
+                size_hint: 1, None
+                height: "28dp"
+                pos_hint: {"center_x": 0.5, "y": 0.14}
+
 
 
 
@@ -393,7 +419,7 @@
 
             MDCard:
                 size_hint: 0.92, None
-                pos_hint: {"center_x": 0.5, "center_y": 0.46}  # lowered from 0.56
+                pos_hint: {"center_x": 0.5, "center_y": 0.46}
                 height: "140dp"
                 padding: "16dp"
                 radius: [18]
