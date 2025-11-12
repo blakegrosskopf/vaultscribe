@@ -295,16 +295,6 @@
                     size_hint_y: None
                     height: "56dp"
 
-                # Keep placeholder but truly hide it (no extra space)
-                WhiteField:
-                    id: codeinput
-                    hint_text: "Verification Code (coming soon)"
-                    multiline: False
-                    size_hint_y: None
-                    height: 0
-                    opacity: 0
-                    disabled: True
-
                 BoxLayout:
                     size_hint_y: None
                     height: "40dp"
@@ -315,7 +305,7 @@
                         md_bg_color: "#1E88E5"
                         theme_text_color: "Custom"
                         text_color: 1,1,1,1
-                        on_press: root.show_popup("Info", "Password reset flow coming soon.")
+                        on_press: root.start_password_reset(email.text)
                     MDFlatButton:
                         text: "Back"
                         font_size: "18dp"

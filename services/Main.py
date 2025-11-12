@@ -854,8 +854,189 @@ class sScreen(Screen):
 
 
 class changeScreen(Screen):
-    # placeholder; wire a password-reset flow later
     dialog = None
+    totp_modal = None  # modal for TOTP verification during password reset
+    # state during password reset flow
+    pending_reset_email = None
+    pending_new_password = None
+
+    def __init__(self, **kwargs):
+        super(changeScreen, self).__init__(**kwargs)
+        self.totp_modal = None
+
+    def build_totp_modal(self):
+        # Build a fresh modal for TOTP verification during password reset
+        modal = ModalView(
+            size_hint=(0.95, None),
+            height="360dp",
+            background_color=[0, 0, 0, 0.5],
+            auto_dismiss=False
+        )
+
+        content = MDCard(
+            orientation="vertical",
+            size_hint_y=None,
+            height="240dp",
+            padding="24dp",
+            spacing="12dp",
+            radius=[18],
+            md_bg_color=[1, 1, 1, 1],
+            elevation=4,
+            pos_hint={"center_x": 0.5, "center_y": 0.5}
+        )
+
+        title = MDLabel(
+            text="Verify Your Identity",
+            theme_text_color="Custom",
+            text_color=[0, 0, 0, 1],
+            font_size="20dp",
+            bold=True,
+            size_hint_y=None,
+            height="30dp",
+            halign="left"
+        )
+        content.add_widget(title)
+
+        subtitle = MDLabel(
+            text="Enter the 6-digit code from your authenticator app",
+            theme_text_color="Custom",
+            text_color=[0, 0, 0, 0.87],
+            font_size="16dp",
+            size_hint_y=None,
+            height="50dp",
+            halign="left"
+        )
+        content.add_widget(subtitle)
+
+        input_box = BoxLayout(
+            orientation="horizontal",
+            size_hint_y=None,
+            height="56dp",
+            spacing="12dp",
+            padding=[0, "12dp", 0, 0]
+        )
+
+        self.modal_totp_input = MDTextField(
+            hint_text="6-digit code",
+            mode="rectangle",
+            size_hint_x=0.6,
+            font_size="18dp",
+            max_text_length=6,
+            helper_text="Enter code from authenticator",
+            helper_text_mode="on_error"
+        )
+        input_box.add_widget(self.modal_totp_input)
+
+        verify_btn = MDRaisedButton(
+            text="Verify",
+            font_size="16dp",
+            size_hint_x=0.4,
+            md_bg_color=[0.26, 0.63, 0.28, 1],
+            on_release=lambda x: self.verify_2fa_for_reset(self.modal_totp_input.text)
+        )
+        input_box.add_widget(verify_btn)
+
+        content.add_widget(input_box)
+        modal.add_widget(content)
+        return modal
+
+    def build_password_modal(self):
+        # Build modal for entering new password
+        modal = ModalView(
+            size_hint=(0.95, None),
+            height="420dp",
+            background_color=[0, 0, 0, 0.5],
+            auto_dismiss=False
+        )
+
+        content = MDCard(
+            orientation="vertical",
+            size_hint_y=None,
+            height="380dp",
+            padding="24dp",
+            spacing="12dp",
+            radius=[18],
+            md_bg_color=[1, 1, 1, 1],
+            elevation=4,
+            pos_hint={"center_x": 0.5, "center_y": 0.5}
+        )
+
+        title = MDLabel(
+            text="Reset Password",
+            theme_text_color="Custom",
+            text_color=[0, 0, 0, 1],
+            font_size="20dp",
+            bold=True,
+            size_hint_y=None,
+            height="30dp",
+            halign="left"
+        )
+        content.add_widget(title)
+
+        subtitle = MDLabel(
+            text="Enter a new password (8+ chars, capital letter, number, special char)",
+            theme_text_color="Custom",
+            text_color=[0, 0, 0, 0.87],
+            font_size="14dp",
+            size_hint_y=None,
+            height="50dp",
+            halign="left"
+        )
+        content.add_widget(subtitle)
+
+        self.modal_password_input = MDTextField(
+            hint_text="New password",
+            mode="rectangle",
+            password=True,
+            size_hint=(None, None),
+            size=("280dp", "56dp"),
+            pos_hint={"center_x": 0.5},
+            font_size="14dp"
+        )
+        content.add_widget(self.modal_password_input)
+
+        self.modal_confirm_input = MDTextField(
+            hint_text="Confirm password",
+            mode="rectangle",
+            password=True,
+            size_hint=(None, None),
+            size=("280dp", "56dp"),
+            pos_hint={"center_x": 0.5},
+            font_size="14dp"
+        )
+        content.add_widget(self.modal_confirm_input)
+
+        button_box = BoxLayout(
+            orientation="horizontal",
+            size_hint_y=None,
+            height="48dp",
+            spacing="12dp",
+            padding=[0, "12dp", 0, 0]
+        )
+
+        reset_btn = MDRaisedButton(
+            text="Reset Password",
+            font_size="14dp",
+            size_hint_x=0.6,
+            md_bg_color=[0.26, 0.63, 0.28, 1],
+            on_release=lambda x: self.complete_password_reset(
+                self.modal_password_input.text,
+                self.modal_confirm_input.text
+            )
+        )
+        button_box.add_widget(reset_btn)
+
+        cancel_btn = MDRaisedButton(
+            text="Cancel",
+            font_size="14dp",
+            size_hint_x=0.4,
+            on_release=lambda x: self.hide_password_modal()
+        )
+        button_box.add_widget(cancel_btn)
+
+        content.add_widget(button_box)
+        modal.add_widget(content)
+        return modal
 
     def show_popup(self, title, message):
         if self.dialog:
@@ -901,6 +1082,167 @@ class changeScreen(Screen):
             height="200dp"
         )
         self.dialog.open()
+
+    def clear_fields(self):
+        if "email" in self.ids:
+            self.ids.email.text = ""
+
+    def start_password_reset(self, email):
+        # Step 1: Validate email exists and has 2FA configured
+        if not email.strip():
+            self.show_popup("Error", "Please enter an email address.")
+            return
+
+        if not validateEmail(email):
+            self.show_popup("Error", "Please enter a valid email address.")
+            return
+
+        database = "users.db"
+        try:
+            with sqlite3.connect(database) as conn:
+                ensure_db_tables(conn)
+                cursor = conn.cursor()
+                cursor.execute(
+                    "SELECT totp_secret FROM users WHERE email = ?",
+                    (email,),
+                )
+                row = cursor.fetchone()
+
+                if not row:
+                    self.show_popup("Error", "No account found with this email.")
+                    return
+
+                if not row[0]:
+                    self.show_popup("Error", "This account does not have 2FA configured.")
+                    return
+
+                # Email exists and has 2FA - proceed to TOTP verification
+                self.pending_reset_email = email
+                self.show_totp_modal_for_reset()
+                self.show_popup("2FA Verification", "Enter the 6-digit code from your authenticator.")
+
+        except sqlite3.Error as e:
+            self.show_popup("Error", f"Database error: {e}")
+
+    def show_totp_modal_for_reset(self):
+        # Show TOTP verification modal
+        if self.totp_modal:
+            try:
+                self.totp_modal.dismiss()
+            except Exception:
+                pass
+            self.totp_modal = None
+
+        self.totp_modal = self.build_totp_modal()
+        try:
+            self.modal_totp_input.text = ""
+            self.modal_totp_input.focus = True
+        except Exception:
+            pass
+        self.totp_modal.open()
+
+    def hide_totp_modal(self):
+        if self.totp_modal:
+            try:
+                self.totp_modal.dismiss()
+            except Exception:
+                pass
+            self.totp_modal = None
+
+    def verify_2fa_for_reset(self, code_text):
+        # Step 2: Verify TOTP code
+        if not self.pending_reset_email:
+            self.show_popup("Error", "No email in reset flow.")
+            return
+
+        database = "users.db"
+        try:
+            with sqlite3.connect(database) as conn:
+                cursor = conn.cursor()
+                cursor.execute(
+                    "SELECT totp_secret FROM users WHERE email = ?",
+                    (self.pending_reset_email,),
+                )
+                row = cursor.fetchone()
+
+                if not row or not row[0]:
+                    self.show_popup("Error", "2FA not configured for this account.")
+                    return
+
+                secret = row[0]
+                if pyotp.TOTP(secret).verify(code_text.strip(), valid_window=1):
+                    # 2FA verified - show password reset modal
+                    self.hide_totp_modal()
+                    self.show_password_modal()
+                else:
+                    self.show_popup("Error", "Invalid 2FA code. Try again.")
+
+        except sqlite3.Error as e:
+            self.show_popup("Error", f"Database error: {e}")
+
+    def show_password_modal(self):
+        # Show password entry modal
+        password_modal = self.build_password_modal()
+        try:
+            self.modal_password_input.text = ""
+            self.modal_confirm_input.text = ""
+            self.modal_password_input.focus = True
+        except Exception:
+            pass
+        password_modal.open()
+        # Store reference for later dismissal
+        self._current_password_modal = password_modal
+
+    def hide_password_modal(self):
+        if hasattr(self, '_current_password_modal'):
+            try:
+                self._current_password_modal.dismiss()
+            except Exception:
+                pass
+            self._current_password_modal = None
+
+    def complete_password_reset(self, new_pwd, confirm_pwd):
+        # Step 3: Validate and reset password
+        if not new_pwd or not confirm_pwd:
+            self.show_popup("Error", "Please enter and confirm your password.")
+            return
+
+        if new_pwd != confirm_pwd:
+            self.show_popup("Error", "Passwords do not match.")
+            return
+
+        # Validate password strength
+        pattern = r'^(?=.*[A-Z])(?=.*[0-9])(?=.*[!@#$%^&*(),.?":{}|<>]).{8,}$'
+        if not re.match(pattern, new_pwd):
+            self.show_popup(
+                "Error",
+                "Password must be ≥8 chars and include a capital letter, a number, and a special char.",
+            )
+            return
+
+        # Hash and update password in database
+        database = "users.db"
+        try:
+            new_hash = ph.hash(new_pwd)
+            with sqlite3.connect(database) as conn:
+                ensure_db_tables(conn)
+                cursor = conn.cursor()
+                cursor.execute(
+                    "UPDATE users SET password = ? WHERE email = ?",
+                    (new_hash, self.pending_reset_email),
+                )
+                conn.commit()
+
+            # Success - cleanup and return to home
+            self.pending_reset_email = None
+            self.pending_new_password = None
+            self.clear_fields()
+            self.hide_password_modal()
+            self.show_popup("Success", "Password reset successfully! You can now login with your new password.")
+            self.manager.current = "home"
+
+        except sqlite3.Error as e:
+            self.show_popup("Error", f"Database error: {e}")
 
 
 # ---------------- App ----------------
