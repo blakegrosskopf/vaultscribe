@@ -1,0 +1,6 @@
+argon2-cffi
+pyotp
+qrcode[pil]
+kivy
+kivymd
+

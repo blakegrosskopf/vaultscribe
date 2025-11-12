@@ -1,6 +1,6 @@
 #:import get_color_from_hex kivy.utils.get_color_from_hex
 
-# ---- Unified white-on-focus text field style ----
+# ---- Unified text field styles ----
 <WhiteField@MDTextField>:
     mode: "rectangle"
     color_mode: "custom"
@@ -13,430 +13,369 @@
     cursor_color: 1, 1, 1, 1
     icon_right_color: get_color_from_hex("#FFFFFFFF")    # ignored on older KivyMD but safe
 
+<MDDialog>:
+    md_bg_color: 0.2, 0.2, 0.2, 1
+    elevation: 8
+    radius: [12, 12, 12, 12]
+    title_color: 1, 1, 1, 1
+    text_color: 1, 1, 1, 0.87
+
 # ===================================================================
 
+# NOTE: The TOTP cards were previously inlined here and caused a full-screen overlay
+# that captured touches. The modal UI is now created in Python; the Screen rules
+# below are the real screens and should not contain nested Screen widgets.
+
 <homeScreen>:
-    Screen:
-        # Solid brand background (#4955AA)
-        canvas.before:
-            Color:
-                rgba: 0.286, 0.333, 0.667, 1
-            Rectangle:
-                pos: self.pos
-                size: self.size
+    # Home screen (login) content
+    canvas.before:
+        Color:
+            rgba: 0.286, 0.333, 0.667, 1
+        Rectangle:
+            pos: self.pos
+            size: self.size
 
-        FloatLayout:
+    FloatLayout:
 
-            # ---------- HEADER (logo aligned with other screens) ----------
-            Image:
-                source: "../assets/logo.png"
-                size_hint: None, None
-                width: "400dp"
-                height: "180dp"
-                allow_stretch: True
-                keep_ratio: True
-                mipmap: True
-                nocache: True
-                pos_hint: {"center_x": 0.5, "top": 0.92}
+        # ---------- HEADER (logo aligned with other screens) ----------
+        Image:
+            source: "../assets/logo.png"
+            size_hint: None, None
+            width: "400dp"
+            height: "180dp"
+            allow_stretch: True
+            keep_ratio: True
+            mipmap: True
+            nocache: True
+            pos_hint: {"center_x": 0.5, "top": 0.92}
 
-            # ---------- CENTER (LOGIN CARD) ----------
-            MDCard:
-                size_hint: 0.92, None
-                pos_hint: {"center_x": 0.5, "center_y": 0.44}  # lowered to clear the logo shadow
+        # ---------- CENTER (LOGIN CARD) ----------
+        MDCard:
+            size_hint: 0.92, None
+            pos_hint: {"center_x": 0.5, "center_y": 0.44}  # lowered to clear the logo shadow
+            height: self.minimum_height
+            padding: "16dp"
+            radius: [18]
+            md_bg_color: 0, 0, 0, 0.28
+            BoxLayout:
+                orientation: "vertical"
+                spacing: "12dp"
+                size_hint_y: None
                 height: self.minimum_height
-                padding: "16dp"
-                radius: [18]
-                md_bg_color: 0, 0, 0, 0.28
-                BoxLayout:
-                    orientation: "vertical"
-                    spacing: "12dp"
+
+                WhiteField:
+                    id: user
+                    hint_text: "Email"
+                    icon_right: "account"
+                    multiline: False
                     size_hint_y: None
-                    height: self.minimum_height
+                    height: "56dp"
 
-                    WhiteField:
-                        id: user
-                        hint_text: "Email"
-                        icon_right: "account"
-                        multiline: False
-                        size_hint_y: None
-                        height: "56dp"
-
-                    WhiteField:
-                        id: psswd
-                        hint_text: "Password"
-                        password: True
-                        icon_right: "eye-off"
-                        multiline: False
-                        size_hint_y: None
-                        height: "56dp"
-
-                    BoxLayout:
-                        size_hint_y: None
-                        height: "30dp"
-                        spacing: "16dp"
-
-                        BoxLayout:
-                            spacing: "6dp"
-                            size_hint_x: 1
-                            MDCheckbox:
-                                id: cb_show
-                                size_hint: None, None
-                                width: "22dp"
-                                height: "22dp"
-                                on_active:
-                                    psswd.password = not self.active
-                                    psswd.icon_right = "eye" if self.active else "eye-off"
-                            MDLabel:
-                                text: "Show Password"
-                                font_size: "14dp"
-                                size_hint_x: None
-                                width: "140dp"
-                                halign: "left"
-                                valign: "middle"
-
-                    BoxLayout:
-                        size_hint_y: None
-                        height: "44dp"
-                        spacing: "10dp"
-                        MDFlatButton:
-                            text: "Sign in"
-                            font_size: "20dp"
-                            md_bg_color: "#303F9F"
-                            theme_text_color: "Custom"
-                            text_color: 1,1,1,1
-                            on_press: root.verify(user.text, psswd.text)
-                        MDFlatButton:
-                            text: "Create account"
-                            font_size: "20dp"
-                            md_bg_color: "#1E88E5"
-                            theme_text_color: "Custom"
-                            text_color: 1,1,1,1
-                            on_press: root.manager.current = 'signUp'
-                            on_press: root.clear_fields()
-
-                    # TOTP step (hidden by default)
-                    BoxLayout:
-                        id: totp_box
-                        orientation: "horizontal"
-                        size_hint_y: None
-                        height: 0
-                        opacity: 0
-                        disabled: True
-                        spacing: "10dp"
-                        WhiteField:
-                            id: totp_input
-                            hint_text: "Enter 6-digit 2FA code"
-                            multiline: False
-                            size_hint_y: None
-                            height: "56dp"
-                        MDFlatButton:
-                            text: "Verify 2FA"
-                            font_size: "18dp"
-                            md_bg_color: "#43A047"
-                            theme_text_color: "Custom"
-                            text_color: 1,1,1,1
-                            on_press: root.verify_totp(totp_input.text)
-
-            # ---------- TAGLINE (short, modern) ----------
-            MDLabel:
-                text: "Private, local meeting summaries, encrypted by default."
-                halign: "center"
-                font_size: "15dp"
-                color: 1, 1, 1, 0.9
-                size_hint: 1, None
-                height: "28dp"
-                pos_hint: {"center_x": 0.5, "y": 0.14}
-
-            # ---------- FOOTER ----------
-            MDLabel:
-                text: "[ref=Reset Password]Reset Password[/ref]"
-                markup: True
-                font_size: "15dp"
-                halign: "center"
-                color: 1, 1, 1, 1
-                size_hint: 1, None
-                height: "40dp"
-                pos_hint: {"center_x": 0.5, "y": 0.02}
-                on_ref_press: root.manager.current = 'changeScreen'
-                on_ref_press: root.clear_fields()
-
-
-
-<signUp>:
-    Screen:
-        canvas.before:
-            Color:
-                rgba: 0.286, 0.333, 0.667, 1
-            Rectangle:
-                pos: self.pos
-                size: self.size
-
-        FloatLayout:
-
-            # Header logo (same placement as Home)
-            Image:
-                source: "../assets/logo.png"
-                size_hint: None, None
-                width: "400dp"
-                height: "180dp"
-                allow_stretch: True
-                keep_ratio: True
-                pos_hint: {"center_x": 0.5, "top": 0.92}
-
-            # Sign-up card
-            MDCard:
-                size_hint: 0.92, None
-                pos_hint: {"center_x": 0.5, "center_y": 0.44}
-                height: self.minimum_height
-                padding: "16dp"
-                radius: [18]
-                md_bg_color: 0, 0, 0, 0.28
-                BoxLayout:
-                    orientation: "vertical"
-                    spacing: "12dp"
+                WhiteField:
+                    id: psswd
+                    hint_text: "Password"
+                    password: True
+                    icon_right: "eye-off"
+                    multiline: False
                     size_hint_y: None
-                    height: self.minimum_height
+                    height: "56dp"
 
-                    WhiteField:
-                        id: username_input
-                        hint_text: "Email"
-                        icon_right: "account"
-                        multiline: False
-                        size_hint_y: None
-                        height: "56dp"
-
-                    WhiteField:
-                        id: password_input
-                        hint_text: "Password"
-                        password: True
-                        icon_right: "eye-off"
-                        multiline: False
-                        size_hint_y: None
-                        height: "56dp"
+                BoxLayout:
+                    size_hint_y: None
+                    height: "30dp"
+                    spacing: "16dp"
 
                     BoxLayout:
-                        id: cBox
-                        size_hint_y: None
-                        height: "30dp"
-                        spacing: "8dp"
+                        spacing: "6dp"
+                        size_hint_x: 1
                         MDCheckbox:
-                            id: cb
+                            id: cb_show
                             size_hint: None, None
-                            width: "28dp"
-                            height: "28dp"
-                            on_press:
-                                password_input.password = not password_input.password
-                                password_input.icon_right = "eye" if password_input.icon_right == "eye-off" else "eye-off"
+                            width: "22dp"
+                            height: "22dp"
+                            on_active:
+                                psswd.password = not self.active
+                                psswd.icon_right = "eye" if self.active else "eye-off"
                         MDLabel:
                             text: "Show Password"
                             font_size: "14dp"
                             size_hint_x: None
                             width: "140dp"
+                            halign: "left"
                             valign: "middle"
 
-                    BoxLayout:
-                        id: sBox
-                        size_hint_y: None
-                        height: "40dp"
-                        spacing: "10dp"
-                        MDFlatButton:
-                            text: "Create account"
-                            font_size: "18dp"
-                            md_bg_color: "#1E88E5"
-                            theme_text_color: "Custom"
-                            text_color: 1,1,1,1
-                            on_press: root.create_user(username_input.text, password_input.text)
-                        MDFlatButton:
-                            text: "Back"
-                            font_size: "18dp"
-                            md_bg_color: "#303F9F"
-                            theme_text_color: "Custom"
-                            text_color: 1,1,1,1
-                            on_press: root.manager.current = 'home'
-                            on_press: root.clear_fields()
-
-            # TOTP enroll card (hidden until create_user)
-            MDCard:
-                id: totp_enroll_box
-                size_hint: 0.92, None
-                pos_hint: {"center_x": 0.5, "center_y": 0.44}
-                height: 0
-                opacity: 0
-                disabled: True
-                padding: "16dp"
-                radius: [18]
-                md_bg_color: 0, 0, 0, 0.28
                 BoxLayout:
-                    orientation: "vertical"
-                    spacing: "10dp"
                     size_hint_y: None
-                    height: self.minimum_height
-
-                    MDLabel:
-                        text: "Scan QR with Google/Microsoft Authenticator"
-                        halign: "center"
-                        font_size: "18dp"
-                    Image:
-                        id: totp_qr
-                        source: "../assets/totp_qr.png"
-                        allow_stretch: True
-                        keep_ratio: True
-                        size_hint_y: None
-                        height: "160dp"
-
-                    WhiteField:
-                        id: totp_code_signup
-                        hint_text: "Enter 6-digit code"
-                        multiline: False
-                        size_hint_y: None
-                        height: "56dp"
-
-                    BoxLayout:
-                        size_hint_y: None
-                        height: "40dp"
-                        spacing: "10dp"
-                        MDRaisedButton:
-                            text: "Verify & Create Account"
-                            on_release: root.complete_signup()
-                        MDRaisedButton:
-                            text: "Cancel"
-                            on_release: root.hide_totp_enroll_ui()
-
-            # ---------- SIGN UP TAGLINE ----------
-            MDLabel:
-                text: "Create your secure, local-first account."
-                halign: "center"
-                font_size: "15dp"
-                color: 1, 1, 1, 0.9
-                size_hint: 1, None
-                height: "28dp"
-                pos_hint: {"center_x": 0.5, "y": 0.14}
-
-
-
-<changeScreen>:
-    Screen:
-        canvas.before:
-            Color:
-                rgba: 0.286, 0.333, 0.667, 1
-            Rectangle:
-                pos: self.pos
-                size: self.size
-
-        FloatLayout:
-
-            Image:
-                source: "../assets/logo.png"
-                size_hint: None, None
-                width: "400dp"
-                height: "180dp"
-                allow_stretch: True
-                keep_ratio: True
-                pos_hint: {"center_x": 0.5, "top": 0.92}
-
-            MDCard:
-                size_hint: 0.92, None
-                pos_hint: {"center_x": 0.5, "center_y": 0.44}   # kept low so it clears the logo
-                height: self.minimum_height
-                padding: "16dp"
-                radius: [18]
-                md_bg_color: 0, 0, 0, 0.28
-                BoxLayout:
-                    orientation: "vertical"
-                    spacing: "12dp"
-                    size_hint_y: None
-                    height: self.minimum_height
-
-                    WhiteField:
-                        id: email
-                        hint_text: "Email"
-                        icon_right: "account"
-                        multiline: False
-                        size_hint_y: None
-                        height: "56dp"
-
-                    # Keep placeholder but truly hide it (no extra space)
-                    WhiteField:
-                        id: codeinput
-                        hint_text: "Verification Code (coming soon)"
-                        multiline: False
-                        size_hint_y: None
-                        height: 0
-                        opacity: 0
-                        disabled: True
-
-                    BoxLayout:
-                        size_hint_y: None
-                        height: "40dp"
-                        spacing: "10dp"
-                        MDFlatButton:
-                            text: "Submit"
-                            font_size: "18dp"
-                            md_bg_color: "#1E88E5"
-                            theme_text_color: "Custom"
-                            text_color: 1,1,1,1
-                            on_press: root.show_popup("Info", "Password reset flow coming soon.")
-                        MDFlatButton:
-                            text: "Back"
-                            font_size: "18dp"
-                            md_bg_color: "#303F9F"
-                            theme_text_color: "Custom"
-                            text_color: 1,1,1,1
-                            on_press: root.manager.current = 'home'
-
-            # Friendly tagline (same placement as Home)
-            MDLabel:
-                text: "Lost your key? Reset it securely."
-                halign: "center"
-                font_size: "15dp"
-                color: 1, 1, 1, 0.9
-                size_hint: 1, None
-                height: "28dp"
-                pos_hint: {"center_x": 0.5, "y": 0.14}
-
-
-
-
-<sScreen>:
-    Screen:
-        canvas.before:
-            Color:
-                rgba: 0.286, 0.333, 0.667, 1
-            Rectangle:
-                pos: self.pos
-                size: self.size
-
-        FloatLayout:
-
-            Image:
-                source: "../assets/logo.png"
-                size_hint: None, None
-                width: "400dp"
-                height: "180dp"
-                allow_stretch: True
-                keep_ratio: True
-                pos_hint: {"center_x": 0.5, "top": 0.92}
-
-            MDCard:
-                size_hint: 0.92, None
-                pos_hint: {"center_x": 0.5, "center_y": 0.46}
-                height: "140dp"
-                padding: "16dp"
-                radius: [18]
-                md_bg_color: 0, 0, 0, 0.28
-                BoxLayout:
-                    orientation: "vertical"
+                    height: "44dp"
                     spacing: "10dp"
-                    MDLabel:
-                        text: "You are signed in."
-                        halign: "center"
-                        font_size: "18dp"
-                        color: "#FFFFFF"
                     MDFlatButton:
-                        id: lBox
-                        text: "Log out"
+                        text: "Sign in"
+                        font_size: "20dp"
+                        md_bg_color: "#303F9F"
+                        theme_text_color: "Custom"
+                        text_color: 1,1,1,1
+                        on_press: root.verify(user.text, psswd.text)
+                    MDFlatButton:
+                        text: "Create account"
+                        font_size: "20dp"
+                        md_bg_color: "#1E88E5"
+                        theme_text_color: "Custom"
+                        text_color: 1,1,1,1
+                        on_press: root.manager.current = 'signUp'
+                        on_press: root.clear_fields()
+
+        # ---------- TAGLINE (short, modern) ----------
+        MDLabel:
+            text: "Private, local meeting summaries, encrypted by default."
+            halign: "center"
+            font_size: "15dp"
+            color: 1, 1, 1, 0.9
+            size_hint: 1, None
+            height: "28dp"
+            pos_hint: {"center_x": 0.5, "y": 0.14}
+
+        # ---------- FOOTER ----------
+        MDLabel:
+            text: "[ref=Reset Password]Reset Password[/ref]"
+            markup: True
+            font_size: "15dp"
+            halign: "center"
+            color: 1, 1, 1, 1
+            size_hint: 1, None
+            height: "40dp"
+            pos_hint: {"center_x": 0.5, "y": 0.02}
+            on_ref_press: root.manager.current = 'changeScreen'
+            on_ref_press: root.clear_fields()
+
+
+
+# SignUp screen — the TOTP/QR is now shown via modal created in Python
+<signUp>:
+    canvas.before:
+        Color:
+            rgba: 0.286, 0.333, 0.667, 1
+        Rectangle:
+            pos: self.pos
+            size: self.size
+
+    FloatLayout:
+
+        # Header logo (same placement as Home)
+        Image:
+            source: "../assets/logo.png"
+            size_hint: None, None
+            width: "400dp"
+            height: "180dp"
+            allow_stretch: True
+            keep_ratio: True
+            pos_hint: {"center_x": 0.5, "top": 0.92}
+
+        # Sign-up card
+        MDCard:
+            size_hint: 0.92, None
+            pos_hint: {"center_x": 0.5, "center_y": 0.44}
+            height: self.minimum_height
+            padding: "16dp"
+            radius: [18]
+            md_bg_color: 0, 0, 0, 0.28
+            BoxLayout:
+                orientation: "vertical"
+                spacing: "12dp"
+                size_hint_y: None
+                height: self.minimum_height
+
+                WhiteField:
+                    id: username_input
+                    hint_text: "Email"
+                    icon_right: "account"
+                    multiline: False
+                    size_hint_y: None
+                    height: "56dp"
+
+                WhiteField:
+                    id: password_input
+                    hint_text: "Password"
+                    password: True
+                    icon_right: "eye-off"
+                    multiline: False
+                    size_hint_y: None
+                    height: "56dp"
+
+                BoxLayout:
+                    id: cBox
+                    size_hint_y: None
+                    height: "30dp"
+                    spacing: "8dp"
+                    MDCheckbox:
+                        id: cb
+                        size_hint: None, None
+                        width: "28dp"
+                        height: "28dp"
+                        on_press:
+                            password_input.password = not password_input.password
+                            password_input.icon_right = "eye" if password_input.icon_right == "eye-off" else "eye-off"
+                    MDLabel:
+                        text: "Show Password"
+                        font_size: "14dp"
+                        size_hint_x: None
+                        width: "140dp"
+                        valign: "middle"
+
+                BoxLayout:
+                    id: sBox
+                    size_hint_y: None
+                    height: "40dp"
+                    spacing: "10dp"
+                    MDFlatButton:
+                        text: "Create account"
                         font_size: "18dp"
                         md_bg_color: "#1E88E5"
                         theme_text_color: "Custom"
                         text_color: 1,1,1,1
+                        on_press: root.create_user(username_input.text, password_input.text)
+                    MDFlatButton:
+                        text: "Back"
+                        font_size: "18dp"
+                        md_bg_color: "#303F9F"
+                        theme_text_color: "Custom"
+                        text_color: 1,1,1,1
                         on_press: root.manager.current = 'home'
+                        on_press: root.clear_fields()
+
+        # ---------- SIGN UP TAGLINE ----------
+        MDLabel:
+            text: "Create your secure, local-first account."
+            halign: "center"
+            font_size: "15dp"
+            color: 1, 1, 1, 0.9
+            size_hint: 1, None
+            height: "28dp"
+            pos_hint: {"center_x": 0.5, "y": 0.14}
+
+
+
+# Change screen
+<changeScreen>:
+    canvas.before:
+        Color:
+            rgba: 0.286, 0.333, 0.667, 1
+        Rectangle:
+            pos: self.pos
+            size: self.size
+
+    FloatLayout:
+
+        Image:
+            source: "../assets/logo.png"
+            size_hint: None, None
+            width: "400dp"
+            height: "180dp"
+            allow_stretch: True
+            keep_ratio: True
+            pos_hint: {"center_x": 0.5, "top": 0.92}
+
+        MDCard:
+            size_hint: 0.92, None
+            pos_hint: {"center_x": 0.5, "center_y": 0.44}   # kept low so it clears the logo
+            height: self.minimum_height
+            padding: "16dp"
+            radius: [18]
+            md_bg_color: 0, 0, 0, 0.28
+            BoxLayout:
+                orientation: "vertical"
+                spacing: "12dp"
+                size_hint_y: None
+                height: self.minimum_height
+
+                WhiteField:
+                    id: email
+                    hint_text: "Email"
+                    icon_right: "account"
+                    multiline: False
+                    size_hint_y: None
+                    height: "56dp"
+
+                # Keep placeholder but truly hide it (no extra space)
+                WhiteField:
+                    id: codeinput
+                    hint_text: "Verification Code (coming soon)"
+                    multiline: False
+                    size_hint_y: None
+                    height: 0
+                    opacity: 0
+                    disabled: True
+
+                BoxLayout:
+                    size_hint_y: None
+                    height: "40dp"
+                    spacing: "10dp"
+                    MDFlatButton:
+                        text: "Submit"
+                        font_size: "18dp"
+                        md_bg_color: "#1E88E5"
+                        theme_text_color: "Custom"
+                        text_color: 1,1,1,1
+                        on_press: root.show_popup("Info", "Password reset flow coming soon.")
+                    MDFlatButton:
+                        text: "Back"
+                        font_size: "18dp"
+                        md_bg_color: "#303F9F"
+                        theme_text_color: "Custom"
+                        text_color: 1,1,1,1
+                        on_press: root.manager.current = 'home'
+
+        # Friendly tagline (same placement as Home)
+        MDLabel:
+            text: "Lost your key? Reset it securely."
+            halign: "center"
+            font_size: "15dp"
+            color: 1, 1, 1, 0.9
+            size_hint: 1, None
+            height: "28dp"
+            pos_hint: {"center_x": 0.5, "y": 0.14}
+
+
+
+# Signed-in screen
+<sScreen>:
+    canvas.before:
+        Color:
+            rgba: 0.286, 0.333, 0.667, 1
+        Rectangle:
+            pos: self.pos
+            size: self.size
+
+    FloatLayout:
+
+        Image:
+            source: "../assets/logo.png"
+            size_hint: None, None
+            width: "400dp"
+            height: "180dp"
+            allow_stretch: True
+            keep_ratio: True
+            pos_hint: {"center_x": 0.5, "top": 0.92}
+
+        MDCard:
+            size_hint: 0.92, None
+            pos_hint: {"center_x": 0.5, "center_y": 0.46}
+            height: "140dp"
+            padding: "16dp"
+            radius: [18]
+            md_bg_color: 0, 0, 0, 0.28
+            BoxLayout:
+                orientation: "vertical"
+                spacing: "10dp"
+                MDLabel:
+                    text: "You are signed in."
+                    halign: "center"
+                    font_size: "18dp"
+                    color: "#FFFFFF"
+                MDFlatButton:
+                    id: lBox
+                    text: "Log out"
+                    font_size: "18dp"
+                    md_bg_color: "#1E88E5"
+                    theme_text_color: "Custom"
+                    text_color: 1,1,1,1
+                    on_press: root.logout()
