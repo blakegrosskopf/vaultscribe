@@ -1,24 +1,24 @@
 #:import get_color_from_hex kivy.utils.get_color_from_hex
 
 # ---- Unified text field styles ----
-<WhiteField@MDTextField>:
-    mode: "rectangle"
+<MDTextField>:
     color_mode: "custom"
     line_color_normal: get_color_from_hex("#FFFFFF55")   # idle border
-    line_color_focus:  get_color_from_hex("#FFFFFFFF")   # focused border
+    line_color_focus:  1, 1, 1, 1   # focused border
     text_color_normal: 1, 1, 1, 1
     text_color_focus:  1, 1, 1, 1
     hint_text_color_normal: get_color_from_hex("#FFFFFF99")
-    hint_text_color_focus:  get_color_from_hex("#FFFFFFFF")
+    hint_text_color_focus:  1, 1, 1, 1
     cursor_color: 1, 1, 1, 1
-    icon_right_color: get_color_from_hex("#FFFFFFFF")    # ignored on older KivyMD but safe
+    icon_right_color: 1, 1, 1, 1
+    hint_icon_right_color: 1, 1, 1, 1
 
 <MDDialog>:
-    md_bg_color: 0.2, 0.2, 0.2, 1
+    md_bg_color: 0.26, 0.3, 0.59, 1
     elevation: 8
     radius: [12, 12, 12, 12]
     title_color: 1, 1, 1, 1
-    text_color: 1, 1, 1, 0.87
+    text_color: 1, 1, 1, 1
 
 # ===================================================================
 
@@ -56,22 +56,25 @@
             height: self.minimum_height
             padding: "16dp"
             radius: [18]
-            md_bg_color: 0, 0, 0, 0.28
+            md_bg_color: 0.26, 0.3, 0.59, 1
             BoxLayout:
                 orientation: "vertical"
                 spacing: "12dp"
                 size_hint_y: None
                 height: self.minimum_height
 
-                WhiteField:
+                MDTextField:
                     id: user
                     hint_text: "Email"
                     icon_right: "account"
                     multiline: False
                     size_hint_y: None
                     height: "56dp"
+                    hint_text: "Email"
+                    _no_floating_label: True
 
-                WhiteField:
+
+                MDTextField:
                     id: psswd
                     hint_text: "Password"
                     password: True
@@ -79,7 +82,7 @@
                     multiline: False
                     size_hint_y: None
                     height: "56dp"
-
+                    _no_floating_label: True
                 BoxLayout:
                     size_hint_y: None
                     height: "30dp"
@@ -118,7 +121,7 @@
                     MDFlatButton:
                         text: "Create account"
                         font_size: "20dp"
-                        md_bg_color: "#1E88E5"
+                        md_bg_color: "#303F9F"
                         theme_text_color: "Custom"
                         text_color: 1,1,1,1
                         on_press: root.manager.current = 'signUp'
@@ -126,7 +129,7 @@
 
         # ---------- TAGLINE (short, modern) ----------
         MDLabel:
-            text: "Private, local meeting summaries, encrypted by default."
+            text: "Transcribed, Encrypted, and Secured."
             halign: "center"
             font_size: "15dp"
             color: 1, 1, 1, 0.9
@@ -177,14 +180,14 @@
             height: self.minimum_height
             padding: "16dp"
             radius: [18]
-            md_bg_color: 0, 0, 0, 0.28
+            md_bg_color: 0.26, 0.3, 0.59, 1
             BoxLayout:
                 orientation: "vertical"
                 spacing: "12dp"
                 size_hint_y: None
                 height: self.minimum_height
 
-                WhiteField:
+                MDTextField:
                     id: username_input
                     hint_text: "Email"
                     icon_right: "account"
@@ -192,7 +195,7 @@
                     size_hint_y: None
                     height: "56dp"
 
-                WhiteField:
+                MDTextField:
                     id: password_input
                     hint_text: "Password"
                     password: True
@@ -219,7 +222,6 @@
                         font_size: "14dp"
                         size_hint_x: None
                         width: "140dp"
-                        valign: "middle"
 
                 BoxLayout:
                     id: sBox
@@ -280,14 +282,14 @@
             height: self.minimum_height
             padding: "16dp"
             radius: [18]
-            md_bg_color: 0, 0, 0, 0.28
+            md_bg_color: 0.26, 0.3, 0.59, 1
             BoxLayout:
                 orientation: "vertical"
                 spacing: "12dp"
                 size_hint_y: None
                 height: self.minimum_height
 
-                WhiteField:
+                MDTextField:
                     id: email
                     hint_text: "Email"
                     icon_right: "account"
@@ -348,24 +350,109 @@
 
         MDCard:
             size_hint: 0.92, None
-            pos_hint: {"center_x": 0.5, "center_y": 0.46}
-            height: "140dp"
-            padding: "16dp"
+            pos_hint: {"center_x": 0.5, "center_y": 0.18}
+            height: "100dp"
+            padding: "12dp"
             radius: [18]
-            md_bg_color: 0, 0, 0, 0.28
+            md_bg_color: 0.26, 0.3, 0.59, 1
             BoxLayout:
                 orientation: "vertical"
                 spacing: "10dp"
                 MDLabel:
-                    text: "You are signed in."
+                    text: "[b]Securely Signed-In[/b]"
+                    markup: True
                     halign: "center"
-                    font_size: "18dp"
+                    font_size: "30dp"
+                    text_style: "H2"
                     color: "#FFFFFF"
-                MDFlatButton:
-                    id: lBox
-                    text: "Log out"
-                    font_size: "18dp"
-                    md_bg_color: "#1E88E5"
-                    theme_text_color: "Custom"
-                    text_color: 1,1,1,1
-                    on_press: root.logout()
+                BoxLayout:
+                    spacing: "6dp"
+                    orientation: "horizontal"
+                    MDFlatButton:
+                        id: lBox
+                        text: "[b]Log out[/b]"
+                        markup: True
+                        font_size: "14dp"
+                        md_bg_color: "#1E88E5"
+                        theme_text_color: "Custom"
+                        text_color: 1,1,1,1
+                        halign: "center"
+                        size_hint_x: 0.5
+                        on_press: root.logout()
+                    MDFlatButton:
+                        text: "[b]Exit Application[/b]"
+                        markup: True
+                        font_size: "14dp"
+                        md_bg_color: "#D32F2F"
+                        theme_text_color: "Custom"
+                        size_hint_x: 0.5
+                        halign: "center"
+                        text_color: 1,1,1,1
+                        on_press: app.stop()
+
+        MDCard:
+            size_hint: 0.92, None
+            pos_hint: {"center_x": 0.5, "y": 0.32}
+            height: "210dp"
+            padding: "20dp"
+            radius: [18]
+            md_bg_color: 0.26, 0.3, 0.59, 1
+            BoxLayout:
+                orientation: "vertical"
+                spacing: "10dp"
+                MDLabel:
+                    text: "[b]Home[/b]"
+                    markup: True
+                    halign: "center"
+                    valign: "top"
+                    font_size: "34dp"
+                    text_style: "H2"
+                    color: 1, 1, 1, 0.9
+                BoxLayout:
+                    orientation: "horizontal"
+                    spacing: "6dp"
+                    MDFlatButton:
+                        text: "[b]Transcribe[/b]"
+                        markup: True
+                        font_size: "18dp"
+                        md_bg_color: "#303F9F"
+                        theme_text_color: "Custom"
+                        text_color: 1,1,1,1
+                        size_hint_x: 0.5
+                        size_hint_y: 1
+                        on_press: root.manager.current = 'transcribeScreen'
+                    MDFlatButton:
+                        text: "[b]Storage[/b]"
+                        markup: True
+                        font_size: "18dp"
+                        md_bg_color: "#303F9F"
+                        size_hint_x: 0.5
+                        size_hint_y: 1
+                        theme_text_color: "Custom"
+                        text_color: 1,1,1,1
+                        on_press: root.manager.current = 'storageScreen'
+                BoxLayout:
+                    orientation: "horizontal"
+                    spacing: "6dp"
+                    MDFlatButton:
+                        text: "[b]Settings[/b]"
+                        markup: True
+                        font_size: "18dp"
+                        md_bg_color: "#303F9F"
+                        theme_text_color: "Custom"
+                        text_color: 1,1,1,1
+                        size_hint_x: 0.5
+                        size_hint_y: 1
+                        on_press: root.manager.current = 'settingsScreen'
+                    MDFlatButton:
+                        text: "[b]Help[/b]"
+                        markup: True
+                        font_size: "18dp"
+                        md_bg_color: "#303F9F"
+                        size_hint_x: 0.5
+                        size_hint_y: 1
+                        theme_text_color: "Custom"
+                        text_color: 1,1,1,1
+                        on_press: root.manager.current = 'helpScreen'
+
+
