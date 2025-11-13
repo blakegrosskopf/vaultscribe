@@ -168,7 +168,7 @@ class homeScreen(Screen):
         title = MDLabel(
             text="2FA Required",
             theme_text_color="Custom",
-            text_color=[0, 0, 0, 1],
+            text_color=[1, 1, 1, 1],
             font_size="20dp",
             bold=True,
             size_hint_y=None,
@@ -180,7 +180,7 @@ class homeScreen(Screen):
         subtitle = MDLabel(
             text="Enter the 6-digit code from your authenticator app",
             theme_text_color="Custom",
-            text_color=[0, 0, 0, 0.87],
+            text_color=[1, 1, 1, 1],
             font_size="16dp",
             size_hint_y=None,
             height="50dp",
@@ -514,7 +514,7 @@ class signUp(Screen):
         title = MDLabel(
             text="Set Up Two-Factor Authentication",
             theme_text_color="Custom",
-            text_color=[0, 0, 0, 1],
+            text_color=[1, 1, 1, 1],
             font_size="20dp",
             bold=True,
             size_hint_y=None,
@@ -526,7 +526,7 @@ class signUp(Screen):
         subtitle = MDLabel(
             text="1. Open Google/Microsoft Authenticator on your phone\n2. Scan this QR code to add your account\n3. Enter the 6-digit code shown in the app",
             theme_text_color="Custom",
-            text_color=[0, 0, 0, 0.87],
+            text_color=[1, 1, 1, 1],
             font_size="14dp",
             size_hint_y=None,
             height="60dp",
@@ -888,7 +888,7 @@ class changeScreen(Screen):
         title = MDLabel(
             text="Verify Your Identity",
             theme_text_color="Custom",
-            text_color=[0, 0, 0, 1],
+            text_color=[1, 1, 1, 1],
             font_size="20dp",
             bold=True,
             size_hint_y=None,
@@ -900,7 +900,7 @@ class changeScreen(Screen):
         subtitle = MDLabel(
             text="Enter the 6-digit code from your authenticator app",
             theme_text_color="Custom",
-            text_color=[0, 0, 0, 0.87],
+            text_color=[1, 1, 1, 1],
             font_size="16dp",
             size_hint_y=None,
             height="50dp",
@@ -976,7 +976,7 @@ class changeScreen(Screen):
         subtitle = MDLabel(
             text="Enter a new password (8+ chars, capital letter, number, special char)",
             theme_text_color="Custom",
-            text_color=[0, 0, 0, 0.87],
+            text_color=[1, 1, 1, 1],
             font_size="14dp",
             size_hint_y=None,
             height="50dp",
@@ -1278,8 +1278,8 @@ class MyApp(MDApp):
 
         sm = ScreenManager()
         sm.add_widget(homeScreen(name="home"))
-        sm.add_widget(signUp(name="signUp"))
         sm.add_widget(sScreen(name="sScreen"))
+        sm.add_widget(signUp(name="signUp"))
         sm.add_widget(changeScreen(name="changeScreen"))
         return sm
 
