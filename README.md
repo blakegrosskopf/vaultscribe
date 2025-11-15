@@ -1,60 +1,187 @@
-# VaultScribe — Local AI Meeting Summarizer (WIP)
+# VaultScribe Desktop (LoginSystemDesktop)
 
-**Status:** 🚧 Work in progress — repo scaffold coming soon. No code committed yet.
+VaultScribe Desktop is a **secure, local-first meeting assistant**.  
+It lets you:
 
-**TO DO** - Complete the sign-up process and ensure that 2FA works for every feature.
+- Sign in with a locally stored account (no cloud auth)
+- Transcribe meeting audio **fully offline** using a local Whisper model
+- Summarize transcripts via an **external LLM API** (OpenRouter)
+- Securely view and copy stored transcripts and summaries
 
-VaultScribe is a **privacy-first, on-device** meeting summarizer. Audio never leaves your machine, summaries are stored in an **encrypted local database**, and results remain unreadable until a **secure login with 2FA** is completed.
+> ⚠️ **Important:** This project is a prototype for a class / portfolio, **not** production-ready security software.
 
 ---
 
-## Why
-- **Privacy & Security:** Offline-first; no cloud by default.  
-- **Control:** Your meetings, your machine, your keys.  
-- **Clarity:** Action-oriented summaries and decisions in seconds.
+## Features
 
-## Planned Features (MVP)
-- [ ] **Secure login** with email/password + **2FA** (e.g., Authenticator app)  
-- [ ] **Local transcription** (pluggable backend; whisper.cpp)  
-- [ ] **Local summarization** (pluggable small LLM; e.g., llama.cpp / GPT4All)  
-- [ ] **Encrypted storage** (SQLite) for transcripts & summaries  
-- [ ] **Search & filter** across local summaries  
-- [ ] **Export** redacted notes (TXT/Markdown)
+- 🧑‍💻 **Local-first login**
+  - User accounts stored locally  
+  - Passwords hashed with **Argon2id**  
+  - Time-limited auth tokens  
 
-## Architecture (initial sketch)
-- **App:** Python (simple desktop UI)
-- **Auth:** Local user store with salted hashes + secrets (hashed)  
-- **DB:** Encrypted SQLite (SQLCipher)  
-- **AI Pipeline:** Local STT → chunking → local LLM summary → action items/decisions → encrypted persist  
-- **Encryption:** At-rest (DB) + in-process handling that keeps decrypted data in memory only after auth
+- 🔐 **Security-focused design**
+  - No passwords or audio ever leave the machine  
+  - Only **text transcripts** are sent to the summarization API  
+  - Designed to run on a single trusted local device  
 
-> **No cloud calls** by default. Any optional connectors (e.g., calendar import) will be opt-in and clearly labeled.
+- 🎙 **Offline transcription**
+  - Powered by a local **Whisper Tiny** model  
+  - No cloud calls  
+  - Requires `ffmpeg`  
 
-## Security & Privacy Commitments
-- 🔒 **Zero telemetry** by default  
-- 🔑 **2FA required** for login  
-- 🗄️ **Data stays local**; no third-party uploads  
-- 🧾 **Auditability:** Log auth events locally (rotating, encrypted)
+- 🧾 AI summaries of meetings
+  - Summaries generated using an LLM via **OpenRouter**  
+  - You manually supply an API key inside `Ai_API.py`:
+    ```
+    OPENROUTER_API_KEY = "API KEY GOES HERE"
+    ```
 
-## Getting Started (coming soon)
-- Prereqs: Python 3.11+, `pipx`, optional CUDA for local models  
-- Quickstart script to bootstrap virtualenv, DB, and TOTP setup  
-- Sample CLI and minimal web UI
+- 🗄 **Storage & retrieval**
+  - View all saved meetings  
+  - Inspect transcript + summary  
+  - Text is fully copyable for documentation or support tickets  
 
-## Roadmap
-- **Milestone 1:** Project scaffold, auth + 2FA, encrypted DB init  
-- **Milestone 2:** Local STT + basic summary pipeline  
-- **Milestone 3:** UI, search, export; privacy hardening  
-- **Milestone 4:** Packaging, docs, and demo
+---
 
-## Contributing
-Early days! Open an issue with suggestions or privacy concerns. We’ll add contribution guidelines and a PR template once the scaffold lands.
+## Tech Stack
 
-## AI Code Assistant Disclosure
-This project documents any usage of an AI code assistant (e.g., GitHub Copilot) in `docs/ai-assistant-usage.md` with files/commits and human review notes.
+- Python 3.10+
+- Kivy + KivyMD (desktop UI)
+- Argon2id hashing
+- Whisper / faster_whisper
+- OpenRouter API for summarization
+- SQLite local database
+
+---
+
+## Getting Started
+
+### 1. Clone the repository
+
+```bash
+git clone https://github.com/<your-username>/<your-repo-name>.git
+cd <your-repo-name>
+```
+
+### 2. Create and activate a venv
+
+```bash
+python -m venv .venv
+```
+
+**Windows:**
+```bash
+.venv\Scripts\activate
+```
+
+**macOS/Linux:**
+```bash
+source .venv/bin/activate
+```
+
+### 3. Install dependencies
+
+```bash
+pip install -r requirements.txt
+```
+
+### 4. Install FFmpeg
+
+**Windows:**
+```bash
+choco install ffmpeg
+```
+
+**macOS:**
+```bash
+brew install ffmpeg
+```
+
+**Linux:**
+```bash
+sudo apt install ffmpeg
+```
+
+### 5. Add a Whisper model
+
+Create:
+
+```
+./whisper/
+```
+
+Download a Whisper Tiny model (from HuggingFace etc.) and place the `.pt` or `.bin` file into that folder.
+
+### 6. Add your OpenRouter API key
+
+Inside `Ai_API.py`:
+
+```
+OPENROUTER_API_KEY = "API KEY GOES HERE"
+```
+
+Replace with your key (but **do not commit it**).
+
+---
+
+## Running the App
+
+```bash
+python services/Main.py
+```
+
+---
+
+## Usage Overview
+
+### 🔐 Create an account
+- Enter email and password  
+- Password stored as Argon2id hash  
+
+### 🔑 Sign in
+- Validates credentials  
+- Generates local session token  
+
+### 🎙 Transcribe audio
+- Pick a file  
+- Whisper transcribes offline  
+- Transcript sent to OpenRouter for summary  
+- Summary displayed in a copyable text field  
+
+### 🗄 View saved meetings
+- Shows all stored sessions  
+- Click any item for transcript + summary  
+
+---
+
+## Security Notes
+
+- Argon2id password hashing  
+- Offline transcription  
+- Only text transcript goes to API  
+- Local storage with SQLite  
+- Not production-hardened  
+
+---
+
+## Future Improvements
+
+- ENV-based secret management  
+- Local summarization model  
+- Export meeting files  
+- Advanced search  
+
+---
 
 ## License
-TBD (likely MIT or Apache-2.0 once code is added).
+
+MIT License
 
 ---
-*Name not final—feel free to rename `VaultScribe` in the header if this repo uses a different project name.*
+
+## Credits
+
+- Kivy / KivyMD  
+- Whisper  
+- OpenRouter  
+- Argon2id hashing  
