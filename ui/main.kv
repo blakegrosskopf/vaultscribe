@@ -1,10 +1,9 @@
 #:import get_color_from_hex kivy.utils.get_color_from_hex
 
-# ---- Unified text field styles ----
 <MDTextField>:
     color_mode: "custom"
-    line_color_normal: get_color_from_hex("#FFFFFF55")   # idle border
-    line_color_focus:  1, 1, 1, 1   # focused border
+    line_color_normal: get_color_from_hex("#FFFFFF55")
+    line_color_focus:  1, 1, 1, 1
     text_color_normal: 1, 1, 1, 1
     text_color_focus:  1, 1, 1, 1
     hint_text_color_normal: get_color_from_hex("#FFFFFF99")
@@ -22,12 +21,7 @@
 
 # ===================================================================
 
-# NOTE: The TOTP cards were previously inlined here and caused a full-screen overlay
-# that captured touches. The modal UI is now created in Python; the Screen rules
-# below are the real screens and should not contain nested Screen widgets.
-
 <homeScreen>:
-    # Home screen (login) content
     canvas.before:
         Color:
             rgba: 0.286, 0.333, 0.667, 1
@@ -37,7 +31,6 @@
 
     FloatLayout:
 
-        # ---------- HEADER (logo aligned with other screens) ----------
         Image:
             source: "../assets/logo.png"
             size_hint: None, None
@@ -49,10 +42,9 @@
             nocache: True
             pos_hint: {"center_x": 0.5, "top": 0.92}
 
-        # ---------- CENTER (LOGIN CARD) ----------
         MDCard:
             size_hint: 0.92, None
-            pos_hint: {"center_x": 0.5, "center_y": 0.44}  # lowered to clear the logo shadow
+            pos_hint: {"center_x": 0.5, "center_y": 0.44}
             height: self.minimum_height
             padding: "16dp"
             radius: [18]
@@ -70,9 +62,7 @@
                     multiline: False
                     size_hint_y: None
                     height: "56dp"
-                    hint_text: "Email"
                     _no_floating_label: True
-
 
                 MDTextField:
                     id: psswd
@@ -83,6 +73,7 @@
                     size_hint_y: None
                     height: "56dp"
                     _no_floating_label: True
+
                 BoxLayout:
                     size_hint_y: None
                     height: "30dp"
@@ -106,6 +97,7 @@
                             width: "140dp"
                             halign: "left"
                             valign: "middle"
+                            color: 1, 1, 1, 1
 
                 BoxLayout:
                     size_hint_y: None
@@ -124,10 +116,10 @@
                         md_bg_color: "#303F9F"
                         theme_text_color: "Custom"
                         text_color: 1,1,1,1
-                        on_press: root.manager.current = 'signUp'
-                        on_press: root.clear_fields()
+                        on_press:
+                            root.manager.current = 'signUp'
+                            root.clear_fields()
 
-        # ---------- TAGLINE (short, modern) ----------
         MDLabel:
             text: "Transcribed, Encrypted, and Secured."
             halign: "center"
@@ -137,7 +129,6 @@
             height: "28dp"
             pos_hint: {"center_x": 0.5, "y": 0.14}
 
-        # ---------- FOOTER ----------
         MDLabel:
             text: "[ref=Reset Password]Reset Password[/ref]"
             markup: True
@@ -147,12 +138,11 @@
             size_hint: 1, None
             height: "40dp"
             pos_hint: {"center_x": 0.5, "y": 0.02}
-            on_ref_press: root.manager.current = 'changeScreen'
-            on_ref_press: root.clear_fields()
+            on_ref_press:
+                root.manager.current = 'changeScreen'
+                root.clear_fields()
 
 
-
-# SignUp screen — the TOTP/QR is now shown via modal created in Python
 <signUp>:
     canvas.before:
         Color:
@@ -163,7 +153,6 @@
 
     FloatLayout:
 
-        # Header logo (same placement as Home)
         Image:
             source: "../assets/logo.png"
             size_hint: None, None
@@ -173,7 +162,6 @@
             keep_ratio: True
             pos_hint: {"center_x": 0.5, "top": 0.92}
 
-        # Sign-up card
         MDCard:
             size_hint: 0.92, None
             pos_hint: {"center_x": 0.5, "center_y": 0.44}
@@ -222,6 +210,7 @@
                         font_size: "14dp"
                         size_hint_x: None
                         width: "140dp"
+                        color: 1, 1, 1, 1
 
                 BoxLayout:
                     id: sBox
@@ -241,10 +230,10 @@
                         md_bg_color: "#303F9F"
                         theme_text_color: "Custom"
                         text_color: 1,1,1,1
-                        on_press: root.manager.current = 'home'
-                        on_press: root.clear_fields()
+                        on_press:
+                            root.manager.current = 'home'
+                            root.clear_fields()
 
-        # ---------- SIGN UP TAGLINE ----------
         MDLabel:
             text: "Create your secure, local-first account."
             halign: "center"
@@ -255,8 +244,6 @@
             pos_hint: {"center_x": 0.5, "y": 0.14}
 
 
-
-# Change screen
 <changeScreen>:
     canvas.before:
         Color:
@@ -278,7 +265,7 @@
 
         MDCard:
             size_hint: 0.92, None
-            pos_hint: {"center_x": 0.5, "center_y": 0.44}   # kept low so it clears the logo
+            pos_hint: {"center_x": 0.5, "center_y": 0.44}
             height: self.minimum_height
             padding: "16dp"
             radius: [18]
@@ -316,7 +303,6 @@
                         text_color: 1,1,1,1
                         on_press: root.manager.current = 'home'
 
-        # Friendly tagline (same placement as Home)
         MDLabel:
             text: "Lost your key? Reset it securely."
             halign: "center"
@@ -327,8 +313,6 @@
             pos_hint: {"center_x": 0.5, "y": 0.14}
 
 
-
-# Signed-in screen
 <sScreen>:
     canvas.before:
         Color:
@@ -363,8 +347,7 @@
                     markup: True
                     halign: "center"
                     font_size: "30dp"
-                    text_style: "H2"
-                    color: "#FFFFFF"
+                    color: 1, 1, 1, 1
                 BoxLayout:
                     spacing: "6dp"
                     orientation: "horizontal"
@@ -406,7 +389,6 @@
                     halign: "center"
                     valign: "top"
                     font_size: "34dp"
-                    text_style: "H2"
                     color: 1, 1, 1, 0.9
                 BoxLayout:
                     orientation: "horizontal"
@@ -456,3 +438,243 @@
                         on_press: root.manager.current = 'helpScreen'
 
 
+<TranscribeScreen>:
+    name: "transcribeScreen"
+    canvas.before:
+        Color:
+            rgba: 0.286, 0.333, 0.667, 1
+        Rectangle:
+            pos: self.pos
+            size: self.size
+
+    FloatLayout:
+        Image:
+            source: "../assets/logo.png"
+            size_hint: None, None
+            width: "320dp"
+            height: "140dp"
+            allow_stretch: True
+            keep_ratio: True
+            pos_hint: {"center_x": 0.5, "top": 0.92}
+
+        MDCard:
+            size_hint: 0.92, None
+            pos_hint: {"center_x": 0.5, "center_y": 0.2}
+            height: "80dp"
+            padding: "12dp"
+            radius: [18]
+            md_bg_color: 0.26, 0.3, 0.59, 1
+            BoxLayout:
+                orientation: "horizontal"
+                spacing: "8dp"
+                MDFlatButton:
+                    text: "Back"
+                    md_bg_color: "#303F9F"
+                    theme_text_color: "Custom"
+                    text_color: 1,1,1,1
+                    size_hint_x: 0.3
+                    on_press: root.manager.current = 'sScreen'
+                MDFlatButton:
+                    id: transcribe_button
+                    text: "Transcribe"
+                    md_bg_color: "#1E88E5"
+                    theme_text_color: "Custom"
+                    text_color: 1,1,1,1
+                    size_hint_x: 0.7
+                    on_press: root.start_transcription(audio_path_input.text)
+
+        MDCard:
+            size_hint: 0.92, None
+            pos_hint: {"center_x": 0.5, "center_y": 0.5}
+            height: "260dp"
+            padding: "16dp"
+            radius: [18]
+            md_bg_color: 0.26, 0.3, 0.59, 1
+            BoxLayout:
+                orientation: "vertical"
+                spacing: "8dp"
+                MDLabel:
+                    text: "[b]Transcription Source[/b]"
+                    markup: True
+                    font_size: "18dp"
+                    color: 1,1,1,1
+                    size_hint_y: None
+                    height: "26dp"
+                MDTextField:
+                    id: audio_path_input
+                    hint_text: "Path to audio file (leave blank for test file)"
+                    multiline: False
+                    size_hint_y: None
+                    height: "48dp"
+                MDLabel:
+                    text: "[b]Summary Output[/b]"
+                    markup: True
+                    font_size: "18dp"
+                    color: 1,1,1,1
+                    size_hint_y: None
+                    height: "26dp"
+                ScrollView:
+                    do_scroll_x: False
+                    MDLabel:
+                        id: summary_output
+                        text: ""
+                        markup: False
+                        text_size: self.width, None
+                        size_hint_y: None
+                        height: self.texture_size[1]
+                        color: 1,1,1,0.9
+
+
+<StorageScreen>:
+    name: "storageScreen"
+    canvas.before:
+        Color:
+            rgba: 0.286, 0.333, 0.667, 1
+        Rectangle:
+            pos: self.pos
+            size: self.size
+
+    FloatLayout:
+        Image:
+            source: "../assets/logo.png"
+            size_hint: None, None
+            width: "320dp"
+            height: "140dp"
+            allow_stretch: True
+            keep_ratio: True
+            pos_hint: {"center_x": 0.5, "top": 0.92}
+
+        MDCard:
+            size_hint: 0.92, None
+            pos_hint: {"center_x": 0.5, "center_y": 0.2}
+            height: "80dp"
+            padding: "12dp"
+            radius: [18]
+            md_bg_color: 0.26, 0.3, 0.59, 1
+            BoxLayout:
+                orientation: "horizontal"
+                spacing: "8dp"
+                MDFlatButton:
+                    text: "Back"
+                    md_bg_color: "#303F9F"
+                    theme_text_color: "Custom"
+                    text_color: 1,1,1,1
+                    size_hint_x: 0.3
+                    on_press: root.manager.current = 'sScreen'
+                MDLabel:
+                    text: "[b]Stored Meetings[/b]"
+                    markup: True
+                    color: 1,1,1,1
+                    halign: "center"
+
+        MDCard:
+            size_hint: 0.92, None
+            pos_hint: {"center_x": 0.5, "center_y": 0.5}
+            height: "260dp"
+            padding: "16dp"
+            radius: [18]
+            md_bg_color: 0.26, 0.3, 0.59, 1
+            BoxLayout:
+                orientation: "vertical"
+                ScrollView:
+                    do_scroll_x: False
+                    MDLabel:
+                        id: storage_label
+                        text: "No stored transcriptions yet."
+                        markup: True
+                        text_size: self.width, None
+                        size_hint_y: None
+                        height: self.texture_size[1]
+                        color: 1,1,1,0.9
+
+
+<SettingsScreen>:
+    name: "settingsScreen"
+    canvas.before:
+        Color:
+            rgba: 0.286, 0.333, 0.667, 1
+        Rectangle:
+            pos: self.pos
+            size: self.size
+
+    FloatLayout:
+        Image:
+            source: "../assets/logo.png"
+            size_hint: None, None
+            width: "320dp"
+            height: "140dp"
+            allow_stretch: True
+            keep_ratio: True
+            pos_hint: {"center_x": 0.5, "top": 0.92}
+
+        MDCard:
+            size_hint: 0.92, None
+            pos_hint: {"center_x": 0.5, "center_y": 0.25}
+            height: "120dp"
+            padding: "16dp"
+            radius: [18]
+            md_bg_color: 0.26, 0.3, 0.59, 1
+            BoxLayout:
+                orientation: "vertical"
+                spacing: "8dp"
+                MDLabel:
+                    text: "[b]Settings[/b]"
+                    markup: True
+                    font_size: "22dp"
+                    color: 1,1,1,1
+                    halign: "center"
+                MDFlatButton:
+                    text: "Back"
+                    md_bg_color: "#303F9F"
+                    theme_text_color: "Custom"
+                    text_color: 1,1,1,1
+                    on_press: root.manager.current = 'sScreen'
+
+
+<HelpScreen>:
+    name: "helpScreen"
+    canvas.before:
+        Color:
+            rgba: 0.286, 0.333, 0.667, 1
+        Rectangle:
+            pos: self.pos
+            size: self.size
+
+    FloatLayout:
+        Image:
+            source: "../assets/logo.png"
+            size_hint: None, None
+            width: "320dp"
+            height: "140dp"
+            allow_stretch: True
+            keep_ratio: True
+            pos_hint: {"center_x": 0.5, "top": 0.92}
+
+        MDCard:
+            size_hint: 0.92, None
+            pos_hint: {"center_x": 0.5, "center_y": 0.25}
+            height: "200dp"
+            padding: "16dp"
+            radius: [18]
+            md_bg_color: 0.26, 0.3, 0.59, 1
+            BoxLayout:
+                orientation: "vertical"
+                spacing: "8dp"
+                MDLabel:
+                    text: "[b]Help[/b]"
+                    markup: True
+                    font_size: "22dp"
+                    color: 1,1,1,1
+                    halign: "center"
+                MDLabel:
+                    text: "VaultScribe prototype. Use Transcribe to generate summaries and Storage to review them."
+                    color: 1,1,1,0.9
+                    text_size: self.width, None
+                    size_hint_y: None
+                    height: self.texture_size[1]
+                MDFlatButton:
+                    text: "Back"
+                    md_bg_color: "#303F9F"
+                    theme_text_color: "Custom"
+                    text_color: 1,1,1,1
+                    on_press: root.manager.current = 'sScreen'

@@ -3,15 +3,18 @@ import re
 import sqlite3
 import secrets
 import datetime
+import threading
+import traceback
+import os
 
 from argon2 import PasswordHasher, exceptions as argon2_exceptions
 from argon2.low_level import Type
 import pyotp
 import qrcode
-import traceback
 
 from kivy.lang import Builder
 from kivy.uix.screenmanager import ScreenManager, Screen
+from kivy.clock import Clock
 from kivymd.app import MDApp
 from kivymd.uix.dialog import MDDialog
 from kivymd.uix.button import MDRaisedButton
@@ -19,33 +22,37 @@ from kivy.core.window import Window
 from kivy.resources import resource_add_path, resource_find
 from kivy.uix.boxlayout import BoxLayout
 from kivy.uix.modalview import ModalView
+from kivy.uix.image import Image
 
-# Add missing KivyMD/Kivy widgets used by the TOTP modals
 from kivymd.uix.card import MDCard
 from kivymd.uix.label import MDLabel
 from kivymd.uix.textfield import MDTextField
-from kivy.uix.image import Image
 
+# AI backend
+from services.backend_ai.Ai_API import AISummarizerTranscriber
 
 # ---------------- Paths ----------------
 BASE_DIR = Path(__file__).resolve().parent
-ASSETS_DIR = (BASE_DIR / ".." / "assets").resolve()
-UI_DIR = (BASE_DIR / ".." / "ui").resolve()
+ROOT_DIR = BASE_DIR.parent
+ASSETS_DIR = (ROOT_DIR / "assets").resolve()
+UI_DIR = (ROOT_DIR / "ui").resolve()
+BACKEND_DIR = (ROOT_DIR / "services" / "backend_ai").resolve()
+
 KV_PATH = UI_DIR / "main.kv"
 QR_PATH = ASSETS_DIR / "totp_qr.png"
 
 ASSETS_DIR.mkdir(parents=True, exist_ok=True)
 
+FFMPEG_BIN = BACKEND_DIR / "ffmpeg-master-latest-win64-gpl-shared" / "bin"
+os.environ["PATH"] = f"{FFMPEG_BIN}{os.pathsep}{os.environ.get('PATH', '')}"
 # Make assets available to KV and Kivy resource lookup immediately
 try:
     resource_add_path(str(ASSETS_DIR))
 except Exception:
-    # resource_add_path may not be critical at import time; _set_window_icon will also call it.
     pass
 
 # Database filename used by the app
-DB_PATH = "users.db"
-
+DB_PATH = str(ROOT_DIR / "users.db")
 
 # ---------------- Argon2id Hasher ----------------
 ph = PasswordHasher(type=Type.ID)  # argon2id
@@ -69,16 +76,14 @@ def ensure_db_tables(conn: sqlite3.Connection):
         )
         """
     )
-    # If the existing users table lacks a totp_secret column, migrate it by adding the column.
     try:
         cur.execute("PRAGMA table_info(users)")
         cols = [r[1] for r in cur.fetchall()]
-        if 'totp_secret' not in cols:
-            # Add the totp_secret column (NULL for existing rows)
+        if "totp_secret" not in cols:
             cur.execute("ALTER TABLE users ADD COLUMN totp_secret TEXT")
     except sqlite3.Error:
-        # PRAGMA or ALTER may fail on some older SQLite builds; ignore and continue
         pass
+
     cur.execute(
         """
         CREATE TABLE IF NOT EXISTS sessions (
@@ -134,23 +139,21 @@ def delete_session(conn: sqlite3.Connection, token: str):
 # ---------------- Screens ----------------
 class homeScreen(Screen):
     dialog = None
-    totp_modal = None  # will hold the TOTP modal
+    totp_modal = None
     rtrue = False
-    pending_user_email = None  # set after password OK, before TOTP
+    pending_user_email = None
     current_session_token = None
 
     def __init__(self, **kwargs):
         super(homeScreen, self).__init__(**kwargs)
-        # Do not create a persistent modal here; build it on demand to avoid reparenting
         self.totp_modal = None
 
     def build_totp_modal(self):
-        # Build and return a fresh ModalView containing the TOTP verification UI
         modal = ModalView(
             size_hint=(0.95, None),
             height="360dp",
             background_color=[0, 0, 0, 0.5],
-            auto_dismiss=False
+            auto_dismiss=False,
         )
 
         content = MDCard(
@@ -160,9 +163,9 @@ class homeScreen(Screen):
             padding="24dp",
             spacing="12dp",
             radius=[18],
-            md_bg_color=[1, 1, 1, 1],
+            md_bg_color=[0.16, 0.17, 0.3, 1],
             elevation=4,
-            pos_hint={"center_x": 0.5, "center_y": 0.5}
+            pos_hint={"center_x": 0.5, "center_y": 0.5},
         )
 
         title = MDLabel(
@@ -173,18 +176,18 @@ class homeScreen(Screen):
             bold=True,
             size_hint_y=None,
             height="30dp",
-            halign="left"
+            halign="left",
         )
         content.add_widget(title)
 
         subtitle = MDLabel(
             text="Enter the 6-digit code from your authenticator app",
             theme_text_color="Custom",
-            text_color=[1, 1, 1, 1],
+            text_color=[1, 1, 1, 0.87],
             font_size="16dp",
             size_hint_y=None,
             height="50dp",
-            halign="left"
+            halign="left",
         )
         content.add_widget(subtitle)
 
@@ -193,10 +196,9 @@ class homeScreen(Screen):
             size_hint_y=None,
             height="56dp",
             spacing="12dp",
-            padding=[0, "12dp", 0, 0]
+            padding=[0, "12dp", 0, 0],
         )
 
-        # Use a modal-specific input (avoid colliding with KV ids)
         self.modal_totp_input = MDTextField(
             hint_text="6-digit code",
             mode="rectangle",
@@ -204,7 +206,7 @@ class homeScreen(Screen):
             font_size="18dp",
             max_text_length=6,
             helper_text="Enter code from authenticator",
-            helper_text_mode="on_error"
+            helper_text_mode="on_error",
         )
         input_box.add_widget(self.modal_totp_input)
 
@@ -212,8 +214,7 @@ class homeScreen(Screen):
             text="Verify",
             font_size="16dp",
             size_hint_x=0.4,
-            md_bg_color=[0.26, 0.63, 0.28, 1],  # #43A047
-            on_release=lambda x: self.verify_totp(self.modal_totp_input.text)
+            on_release=lambda x: self.verify_totp(self.modal_totp_input.text),
         )
         input_box.add_widget(verify_btn)
 
@@ -228,14 +229,14 @@ class homeScreen(Screen):
             except Exception:
                 pass
 
-        # Create custom content widget with text label and button
         from kivymd.uix.boxlayout import MDBoxLayout
+
         content = MDBoxLayout(
             orientation="vertical",
             padding="16dp",
             spacing="12dp",
             size_hint_y=None,
-            height="120dp"
+            height="120dp",
         )
 
         msg_label = MDLabel(
@@ -246,14 +247,14 @@ class homeScreen(Screen):
             size_hint_y=None,
             height="60dp",
             halign="left",
-            valign="top"
+            valign="top",
         )
         content.add_widget(msg_label)
 
         ok_btn = MDRaisedButton(
             text="OK",
             size_hint_x=1,
-            on_release=lambda x: self.dialog.dismiss()
+            on_release=lambda x: self.dialog.dismiss(),
         )
         content.add_widget(ok_btn)
 
@@ -262,19 +263,17 @@ class homeScreen(Screen):
             type="custom",
             content_cls=content,
             size_hint=(0.8, None),
-            height="200dp"
+            height="200dp",
         )
         self.dialog.open()
 
     def clear_fields(self):
         if self.rtrue:
-            # remember-me keeps current text
             self.ids.user.text = self.ids.user.text
             self.ids.psswd.text = self.ids.psswd.text
         else:
             self.ids.user.text = ""
             self.ids.psswd.text = ""
-        # clear any modal input if present
         try:
             self.modal_totp_input.text = ""
         except Exception:
@@ -283,9 +282,8 @@ class homeScreen(Screen):
     def remember(self):
         self.rtrue = not self.rtrue
 
-    # Login step 1: password check
     def verify(self, user, psswd):
-        database = "users.db"
+        database = DB_PATH
         try:
             with sqlite3.connect(database) as conn:
                 ensure_db_tables(conn)
@@ -299,105 +297,109 @@ class homeScreen(Screen):
                     return False
 
                 stored_hash = row[0]
-                # Defensive: ensure stored_hash is a str
                 if isinstance(stored_hash, bytes):
                     try:
-                        stored_hash = stored_hash.decode('utf-8')
+                        stored_hash = stored_hash.decode("utf-8")
                     except Exception:
                         stored_hash = str(stored_hash)
 
                 verified = False
                 used_legacy = False
                 try:
-                    # Try Argon2 verification first
-                    # Debug: print stored_hash type and prefix (not full hash) to console to aid troubleshooting
                     try:
                         prefix = stored_hash[:16]
                     except Exception:
                         prefix = str(type(stored_hash))
-                    print(f"[auth] Argon2 verify: stored_hash_type={type(stored_hash)}, prefix={prefix}")
+                    print(
+                        f"[auth] Argon2 verify: stored_hash_type={type(stored_hash)}, prefix={prefix}"
+                    )
                     ph.verify(stored_hash, psswd)
                     verified = True
-                    # if Argon2 params changed, rehash
                     if ph.check_needs_rehash(stored_hash):
                         new_hash = ph.hash(psswd)
-                        cursor.execute("UPDATE users SET password = ? WHERE email = ?", (new_hash, user))
+                        cursor.execute(
+                            "UPDATE users SET password = ? WHERE email = ?",
+                            (new_hash, user),
+                        )
                         conn.commit()
                 except argon2_exceptions.VerifyMismatchError:
-                    # Wrong password for Argon2 hash; don't try other fallbacks
                     self.show_popup("Error", "Invalid email or password.")
                     self.clear_fields()
                     return False
                 except argon2_exceptions.InvalidHash:
-                    # Stored hash isn't a valid Argon2 hash — attempt legacy handling
                     used_legacy = True
-                except Exception as e:
-                    # Unexpected Argon2 exception: log traceback and attempt legacy fallback.
-                    # We don't immediately show a generic Authentication error here; instead
-                    # we mark this as a legacy-hash situation so the bcrypt/plaintext
-                    # fallback runs. If the fallback fails, the user will see a normal
-                    # "Invalid email or password" message.
-                    print('[auth] Unexpected Argon2 exception:')
+                except Exception:
+                    print("[auth] Unexpected Argon2 exception:")
                     traceback.print_exc()
                     used_legacy = True
 
-                # Legacy fallback: bcrypt or plaintext
                 if not verified and used_legacy:
                     try:
-                        # bcrypt hashes typically start with $2b$, $2a$, or $2y$
                         if isinstance(stored_hash, str) and stored_hash.startswith("$2"):
                             try:
-                                # lazy import bcrypt to avoid hard dependency at import time
                                 import bcrypt as _bcrypt
                             except Exception:
-                                # bcrypt not available — inform and fall back to failure
-                                print('bcrypt not available for legacy hash verification')
+                                print("bcrypt not available for legacy hash verification")
                                 traceback.print_exc()
-                                self.show_popup("Error", "Legacy password verifier unavailable.")
+                                self.show_popup(
+                                    "Error", "Legacy password verifier unavailable."
+                                )
                                 return False
                             try:
-                                ok = _bcrypt.checkpw(psswd.encode('utf-8'), stored_hash.encode('utf-8'))
+                                ok = _bcrypt.checkpw(
+                                    psswd.encode("utf-8"),
+                                    stored_hash.encode("utf-8"),
+                                )
                                 if ok:
                                     verified = True
-                                    # rehash to Argon2 and store
                                     new_hash = ph.hash(psswd)
-                                    cursor.execute("UPDATE users SET password = ? WHERE email = ?", (new_hash, user))
+                                    cursor.execute(
+                                        "UPDATE users SET password = ? WHERE email = ?",
+                                        (new_hash, user),
+                                    )
                                     conn.commit()
                                 else:
                                     self.show_popup("Error", "Invalid email or password.")
                                     self.clear_fields()
                                     return False
-                            except Exception as be:
-                                print('bcrypt verification error:')
+                            except Exception:
+                                print("bcrypt verification error:")
                                 traceback.print_exc()
-                                self.show_popup("Error", "Legacy bcrypt verify failed (see console).")
+                                self.show_popup(
+                                    "Error",
+                                    "Legacy bcrypt verify failed (see console).",
+                                )
                                 return False
                         else:
-                            # Plaintext fallback — compare directly (rare, only for older DBs)
                             if stored_hash == psswd:
                                 verified = True
-                                # rehash to Argon2 and store
                                 new_hash = ph.hash(psswd)
-                                cursor.execute("UPDATE users SET password = ? WHERE email = ?", (new_hash, user))
+                                cursor.execute(
+                                    "UPDATE users SET password = ? WHERE email = ?",
+                                    (new_hash, user),
+                                )
                                 conn.commit()
                             else:
                                 self.show_popup("Error", "Invalid email or password.")
                                 self.clear_fields()
                                 return False
-                    except Exception as e:
-                        # Log detailed traceback; show concise message to user
-                        print('[auth] legacy fallback exception:')
+                    except Exception:
+                        print("[auth] legacy fallback exception:")
                         traceback.print_exc()
                         try:
-                            self.show_popup("Error", "Authentication failed. If this continues, check logs.")
+                            self.show_popup(
+                                "Error",
+                                "Authentication failed. If this continues, check logs.",
+                            )
                         except Exception:
                             pass
                         return False
 
-                # Password is correct → show TOTP step
                 self.pending_user_email = user
                 self.show_totp_box()
-                self.show_popup("2FA Required", "Enter the 6-digit code from your authenticator.")
+                self.show_popup(
+                    "2FA Required", "Enter the 6-digit code from your authenticator."
+                )
                 return True
 
         except sqlite3.Error as e:
@@ -405,7 +407,6 @@ class homeScreen(Screen):
             return False
 
     def show_totp_box(self):
-        # Create a fresh modal each time to avoid reparenting errors and z-order issues
         if self.totp_modal:
             try:
                 self.totp_modal.dismiss()
@@ -414,7 +415,6 @@ class homeScreen(Screen):
             self.totp_modal = None
 
         self.totp_modal = self.build_totp_modal()
-        # Clear any previous text and open
         try:
             self.modal_totp_input.text = ""
             self.modal_totp_input.focus = True
@@ -423,7 +423,6 @@ class homeScreen(Screen):
         self.totp_modal.open()
 
     def hide_totp_box(self):
-        # Hide modal TOTP verification overlay
         if self.totp_modal:
             try:
                 self.totp_modal.dismiss()
@@ -435,13 +434,12 @@ class homeScreen(Screen):
             except Exception:
                 pass
 
-    # Login step 2: TOTP
     def verify_totp(self, code_text):
         if not self.pending_user_email:
             self.show_popup("Error", "No user in 2FA flow.")
             return
 
-        database = "users.db"
+        database = DB_PATH
         try:
             with sqlite3.connect(database) as conn:
                 cursor = conn.cursor()
@@ -457,17 +455,16 @@ class homeScreen(Screen):
 
                 secret = row[0]
                 if pyotp.TOTP(secret).verify(code_text.strip(), valid_window=1):
-                    # create session token and store in DB
                     token = create_session(conn, self.pending_user_email)
                     self.current_session_token = token
-                    # store token on the running app for global access
                     try:
                         MDApp.get_running_app().current_session_token = token
                     except Exception:
                         pass
-                    self.show_popup("Success", f"Login successful!\nSession token: {token}")
+                    self.show_popup(
+                        "Success", f"Login successful!\nSession token: {token}"
+                    )
                     self.clear_fields()
-                    # hide TOTP modal
                     self.hide_totp_box()
                     self.manager.current = "sScreen"
                 else:
@@ -479,24 +476,21 @@ class homeScreen(Screen):
 
 class signUp(Screen):
     dialog = None
-    totp_modal = None  # will hold the TOTP enrollment modal
-    # temp state while enrolling TOTP before inserting into DB
+    totp_modal = None
     pending_email = None
     pending_pwd_hash = None
     pending_totp_secret = None
 
     def __init__(self, **kwargs):
         super(signUp, self).__init__(**kwargs)
-        # Do not create persistent modal now; will be created when enroll flow starts
         self.totp_modal = None
 
     def build_totp_modal(self):
-        # Build a fresh modal used for TOTP enrollment (QR + code)
         modal = ModalView(
             size_hint=(0.95, None),
-            height="640dp",  # taller for QR
+            height="640dp",
             background_color=[0, 0, 0, 0.5],
-            auto_dismiss=False
+            auto_dismiss=False,
         )
 
         content = MDCard(
@@ -506,9 +500,9 @@ class signUp(Screen):
             padding="24dp",
             spacing="16dp",
             radius=[18],
-            md_bg_color=[1, 1, 1, 1],
+            md_bg_color=[0.16, 0.17, 0.3, 1],
             elevation=4,
-            pos_hint={"center_x": 0.5, "center_y": 0.5}
+            pos_hint={"center_x": 0.5, "center_y": 0.5},
         )
 
         title = MDLabel(
@@ -519,29 +513,30 @@ class signUp(Screen):
             bold=True,
             size_hint_y=None,
             height="30dp",
-            halign="left"
+            halign="left",
         )
         content.add_widget(title)
 
         subtitle = MDLabel(
-            text="1. Open Google/Microsoft Authenticator on your phone\n2. Scan this QR code to add your account\n3. Enter the 6-digit code shown in the app",
+            text="1. Open Google/Microsoft Authenticator on your phone\n"
+            "2. Scan this QR code to add your account\n"
+            "3. Enter the 6-digit code shown in the app",
             theme_text_color="Custom",
-            text_color=[1, 1, 1, 1],
+            text_color=[1, 1, 1, 0.87],
             font_size="14dp",
             size_hint_y=None,
             height="60dp",
-            halign="left"
+            halign="left",
         )
         content.add_widget(subtitle)
 
-        # Show QR image from assets
         self.modal_qr_image = Image(
             source=str(QR_PATH),
             size_hint=(None, None),
             size=("240dp", "240dp"),
             pos_hint={"center_x": 0.5},
             allow_stretch=True,
-            keep_ratio=True
+            keep_ratio=True,
         )
         content.add_widget(self.modal_qr_image)
 
@@ -550,7 +545,7 @@ class signUp(Screen):
             size_hint_y=None,
             height="140dp",
             spacing="12dp",
-            padding=[0, "12dp", 0, 0]
+            padding=[0, "12dp", 0, 0],
         )
 
         self.modal_totp_input = MDTextField(
@@ -562,7 +557,7 @@ class signUp(Screen):
             font_size="18dp",
             max_text_length=6,
             helper_text="Enter code from authenticator",
-            helper_text_mode="on_error"
+            helper_text_mode="on_error",
         )
         input_layout.add_widget(self.modal_totp_input)
 
@@ -571,15 +566,14 @@ class signUp(Screen):
             size_hint_y=None,
             height="48dp",
             spacing="12dp",
-            padding=[0, "12dp", 0, 0]
+            padding=[0, "12dp", 0, 0],
         )
 
         verify_btn = MDRaisedButton(
             text="Verify & Create Account",
             font_size="14dp",
             size_hint_x=0.7,
-            md_bg_color=[0.26, 0.63, 0.28, 1],
-            on_release=lambda x: self.complete_signup()
+            on_release=lambda x: self.complete_signup(),
         )
         button_box.add_widget(verify_btn)
 
@@ -587,13 +581,12 @@ class signUp(Screen):
             text="Cancel",
             font_size="14dp",
             size_hint_x=0.3,
-            on_release=lambda x: self.hide_totp_enroll_ui()
+            on_release=lambda x: self.hide_totp_enroll_ui(),
         )
         button_box.add_widget(cancel_btn)
 
         input_layout.add_widget(button_box)
         content.add_widget(input_layout)
-
         modal.add_widget(content)
         return modal
 
@@ -604,14 +597,14 @@ class signUp(Screen):
             except Exception:
                 pass
 
-        # Create custom content widget with text label and button
         from kivymd.uix.boxlayout import MDBoxLayout
+
         content = MDBoxLayout(
             orientation="vertical",
             padding="16dp",
             spacing="12dp",
             size_hint_y=None,
-            height="120dp"
+            height="120dp",
         )
 
         msg_label = MDLabel(
@@ -622,14 +615,14 @@ class signUp(Screen):
             size_hint_y=None,
             height="60dp",
             halign="left",
-            valign="top"
+            valign="top",
         )
         content.add_widget(msg_label)
 
         ok_btn = MDRaisedButton(
             text="OK",
             size_hint_x=1,
-            on_release=lambda x: self.dialog.dismiss()
+            on_release=lambda x: self.dialog.dismiss(),
         )
         content.add_widget(ok_btn)
 
@@ -638,7 +631,7 @@ class signUp(Screen):
             type="custom",
             content_cls=content,
             size_hint=(0.8, None),
-            height="200dp"
+            height="200dp",
         )
         self.dialog.open()
 
@@ -651,12 +644,11 @@ class signUp(Screen):
             self.ids.totp_code_signup.text = ""
 
     def create_user(self, username, password):
-        # Validate email + password strength
         if not validateEmail(username):
             self.show_popup("Error", "Email is invalid.")
             return
 
-        pattern = r'^(?=.*[A-Z])(?=.*[0-9])(?=.*[!@#$%^&*(),.?":{}|<>]).{8,}$'
+        pattern = r"^(?=.*[A-Z])(?=.*[0-9])(?=.*[!@#$%^&*(),.?\":{}|<>]).{8,}$"
         if not re.match(pattern, password):
             self.show_popup(
                 "Error",
@@ -664,38 +656,37 @@ class signUp(Screen):
             )
             return
 
-        # Prepare Argon2id + TOTP
         try:
             pwd_hash = ph.hash(password)
             secret = pyotp.random_base32()
             issuer = "VaultScribe"
-            uri = pyotp.totp.TOTP(secret).provisioning_uri(name=username, issuer_name=issuer)
+            uri = pyotp.totp.TOTP(secret).provisioning_uri(
+                name=username, issuer_name=issuer
+            )
 
-            # Save temp state until code verified
             self.pending_email = username
             self.pending_pwd_hash = pwd_hash
             self.pending_totp_secret = secret
 
-            # Generate QR image
             img = qrcode.make(uri)
             img.save(QR_PATH)
 
-            # Show TOTP enrollment UI (QR + code box)
             self.show_totp_enroll_ui()
-            self.show_popup("Verify 2FA", "Scan the QR in your authenticator and enter the 6-digit code.")
+            self.show_popup(
+                "Verify 2FA",
+                "Scan the QR in your authenticator and enter the 6-digit code.",
+            )
 
         except Exception as e:
             self.show_popup("Error", f"Setup failed: {e}")
 
     def show_totp_enroll_ui(self):
-        # Hide normal inputs
         for w in ("sBox", "cBox", "username_input", "password_input"):
             if w in self.ids:
                 self.ids[w].opacity = 0
                 if hasattr(self.ids[w], "disabled"):
                     self.ids[w].disabled = True
 
-        # Create a fresh modal and open it
         if self.totp_modal:
             try:
                 self.totp_modal.dismiss()
@@ -705,7 +696,6 @@ class signUp(Screen):
 
         self.totp_modal = self.build_totp_modal()
 
-        # Update QR image in the modal (now that it's built)
         try:
             self.modal_qr_image.source = str(QR_PATH)
             self.modal_qr_image.reload()
@@ -720,7 +710,6 @@ class signUp(Screen):
         self.totp_modal.open()
 
     def hide_totp_enroll_ui(self):
-        # Hide TOTP modal
         if self.totp_modal:
             try:
                 self.totp_modal.dismiss()
@@ -728,22 +717,25 @@ class signUp(Screen):
                 pass
             self.totp_modal = None
 
-        # Show normal inputs again
         for w in ("sBox", "cBox", "username_input", "password_input"):
             if w in self.ids:
                 self.ids[w].opacity = 1
                 if hasattr(self.ids[w], "disabled"):
                     self.ids[w].disabled = False
 
-        # Clear any pending state
         self.pending_email = None
         self.pending_pwd_hash = None
         self.pending_totp_secret = None
 
     def complete_signup(self):
-        # verify 6-digit code then insert user
-        code = self.modal_totp_input.text.strip() if hasattr(self, 'modal_totp_input') else ""
-        if not (self.pending_email and self.pending_pwd_hash and self.pending_totp_secret):
+        code = (
+            self.modal_totp_input.text.strip()
+            if hasattr(self, "modal_totp_input")
+            else ""
+        )
+        if not (
+            self.pending_email and self.pending_pwd_hash and self.pending_totp_secret
+        ):
             self.show_popup("Error", "TOTP enrollment not initialized.")
             return
 
@@ -752,17 +744,20 @@ class signUp(Screen):
             return
 
         try:
-            database = "users.db"
+            database = DB_PATH
             with sqlite3.connect(database) as conn:
                 ensure_db_tables(conn)
                 cursor = conn.cursor()
                 cursor.execute(
                     "INSERT INTO users (email, password, totp_secret) VALUES (?, ?, ?)",
-                    (self.pending_email, self.pending_pwd_hash, self.pending_totp_secret),
+                    (
+                        self.pending_email,
+                        self.pending_pwd_hash,
+                        self.pending_totp_secret,
+                    ),
                 )
                 conn.commit()
 
-            # cleanup temp + UI
             self.pending_email = None
             self.pending_pwd_hash = None
             self.pending_totp_secret = None
@@ -787,14 +782,14 @@ class sScreen(Screen):
             except Exception:
                 pass
 
-        # Create custom content widget with text label and button
         from kivymd.uix.boxlayout import MDBoxLayout
+
         content = MDBoxLayout(
             orientation="vertical",
             padding="16dp",
             spacing="12dp",
             size_hint_y=None,
-            height="120dp"
+            height="120dp",
         )
 
         msg_label = MDLabel(
@@ -805,14 +800,14 @@ class sScreen(Screen):
             size_hint_y=None,
             height="60dp",
             halign="left",
-            valign="top"
+            valign="top",
         )
         content.add_widget(msg_label)
 
         ok_btn = MDRaisedButton(
             text="OK",
             size_hint_x=1,
-            on_release=lambda x: self.dialog.dismiss()
+            on_release=lambda x: self.dialog.dismiss(),
         )
         content.add_widget(ok_btn)
 
@@ -821,12 +816,11 @@ class sScreen(Screen):
             type="custom",
             content_cls=content,
             size_hint=(0.8, None),
-            height="200dp"
+            height="200dp",
         )
         self.dialog.open()
 
     def logout(self):
-        # Delete stored session token (if any) and return to home
         token = None
         try:
             token = MDApp.get_running_app().current_session_token
@@ -839,24 +833,22 @@ class sScreen(Screen):
                     delete_session(conn, token)
             except Exception:
                 pass
-        # clear app session state
+
         try:
             MDApp.get_running_app().current_session_token = None
         except Exception:
             pass
 
         self.show_popup("Signed out", "You have been logged out.")
-        # switch screen back to home
         try:
-            self.manager.current = 'home'
+            self.manager.current = "home"
         except Exception:
             pass
 
 
 class changeScreen(Screen):
     dialog = None
-    totp_modal = None  # modal for TOTP verification during password reset
-    # state during password reset flow
+    totp_modal = None
     pending_reset_email = None
     pending_new_password = None
 
@@ -865,12 +857,11 @@ class changeScreen(Screen):
         self.totp_modal = None
 
     def build_totp_modal(self):
-        # Build a fresh modal for TOTP verification during password reset
         modal = ModalView(
             size_hint=(0.95, None),
             height="360dp",
             background_color=[0, 0, 0, 0.5],
-            auto_dismiss=False
+            auto_dismiss=False,
         )
 
         content = MDCard(
@@ -880,9 +871,9 @@ class changeScreen(Screen):
             padding="24dp",
             spacing="12dp",
             radius=[18],
-            md_bg_color=[1, 1, 1, 1],
+            md_bg_color=[0.16, 0.17, 0.3, 1],
             elevation=4,
-            pos_hint={"center_x": 0.5, "center_y": 0.5}
+            pos_hint={"center_x": 0.5, "center_y": 0.5},
         )
 
         title = MDLabel(
@@ -893,18 +884,18 @@ class changeScreen(Screen):
             bold=True,
             size_hint_y=None,
             height="30dp",
-            halign="left"
+            halign="left",
         )
         content.add_widget(title)
 
         subtitle = MDLabel(
             text="Enter the 6-digit code from your authenticator app",
             theme_text_color="Custom",
-            text_color=[1, 1, 1, 1],
+            text_color=[1, 1, 1, 0.87],
             font_size="16dp",
             size_hint_y=None,
             height="50dp",
-            halign="left"
+            halign="left",
         )
         content.add_widget(subtitle)
 
@@ -913,7 +904,7 @@ class changeScreen(Screen):
             size_hint_y=None,
             height="56dp",
             spacing="12dp",
-            padding=[0, "12dp", 0, 0]
+            padding=[0, "12dp", 0, 0],
         )
 
         self.modal_totp_input = MDTextField(
@@ -923,7 +914,7 @@ class changeScreen(Screen):
             font_size="18dp",
             max_text_length=6,
             helper_text="Enter code from authenticator",
-            helper_text_mode="on_error"
+            helper_text_mode="on_error",
         )
         input_box.add_widget(self.modal_totp_input)
 
@@ -931,8 +922,9 @@ class changeScreen(Screen):
             text="Verify",
             font_size="16dp",
             size_hint_x=0.4,
-            md_bg_color=[0.26, 0.63, 0.28, 1],
-            on_release=lambda x: self.verify_2fa_for_reset(self.modal_totp_input.text)
+            on_release=lambda x: self.verify_2fa_for_reset(
+                self.modal_totp_input.text
+            ),
         )
         input_box.add_widget(verify_btn)
 
@@ -941,12 +933,11 @@ class changeScreen(Screen):
         return modal
 
     def build_password_modal(self):
-        # Build modal for entering new password
         modal = ModalView(
             size_hint=(0.95, None),
             height="420dp",
             background_color=[0, 0, 0, 0.5],
-            auto_dismiss=False
+            auto_dismiss=False,
         )
 
         content = MDCard(
@@ -956,31 +947,31 @@ class changeScreen(Screen):
             padding="24dp",
             spacing="12dp",
             radius=[18],
-            md_bg_color=[1, 1, 1, 1],
+            md_bg_color=[0.16, 0.17, 0.3, 1],
             elevation=4,
-            pos_hint={"center_x": 0.5, "center_y": 0.5}
+            pos_hint={"center_x": 0.5, "center_y": 0.5},
         )
 
         title = MDLabel(
             text="Reset Password",
             theme_text_color="Custom",
-            text_color=[0, 0, 0, 1],
+            text_color=[1, 1, 1, 1],
             font_size="20dp",
             bold=True,
             size_hint_y=None,
             height="30dp",
-            halign="left"
+            halign="left",
         )
         content.add_widget(title)
 
         subtitle = MDLabel(
             text="Enter a new password (8+ chars, capital letter, number, special char)",
             theme_text_color="Custom",
-            text_color=[1, 1, 1, 1],
+            text_color=[1, 1, 1, 0.87],
             font_size="14dp",
             size_hint_y=None,
             height="50dp",
-            halign="left"
+            halign="left",
         )
         content.add_widget(subtitle)
 
@@ -991,7 +982,7 @@ class changeScreen(Screen):
             size_hint=(None, None),
             size=("280dp", "56dp"),
             pos_hint={"center_x": 0.5},
-            font_size="14dp"
+            font_size="14dp",
         )
         content.add_widget(self.modal_password_input)
 
@@ -1002,7 +993,7 @@ class changeScreen(Screen):
             size_hint=(None, None),
             size=("280dp", "56dp"),
             pos_hint={"center_x": 0.5},
-            font_size="14dp"
+            font_size="14dp",
         )
         content.add_widget(self.modal_confirm_input)
 
@@ -1011,18 +1002,17 @@ class changeScreen(Screen):
             size_hint_y=None,
             height="48dp",
             spacing="12dp",
-            padding=[0, "12dp", 0, 0]
+            padding=[0, "12dp", 0, 0],
         )
 
         reset_btn = MDRaisedButton(
             text="Reset Password",
             font_size="14dp",
             size_hint_x=0.6,
-            md_bg_color=[0.26, 0.63, 0.28, 1],
             on_release=lambda x: self.complete_password_reset(
                 self.modal_password_input.text,
-                self.modal_confirm_input.text
-            )
+                self.modal_confirm_input.text,
+            ),
         )
         button_box.add_widget(reset_btn)
 
@@ -1030,7 +1020,7 @@ class changeScreen(Screen):
             text="Cancel",
             font_size="14dp",
             size_hint_x=0.4,
-            on_release=lambda x: self.hide_password_modal()
+            on_release=lambda x: self.hide_password_modal(),
         )
         button_box.add_widget(cancel_btn)
 
@@ -1045,14 +1035,14 @@ class changeScreen(Screen):
             except Exception:
                 pass
 
-        # Create custom content widget with text label and button
         from kivymd.uix.boxlayout import MDBoxLayout
+
         content = MDBoxLayout(
             orientation="vertical",
             padding="16dp",
             spacing="12dp",
             size_hint_y=None,
-            height="120dp"
+            height="120dp",
         )
 
         msg_label = MDLabel(
@@ -1063,14 +1053,14 @@ class changeScreen(Screen):
             size_hint_y=None,
             height="60dp",
             halign="left",
-            valign="top"
+            valign="top",
         )
         content.add_widget(msg_label)
 
         ok_btn = MDRaisedButton(
             text="OK",
             size_hint_x=1,
-            on_release=lambda x: self.dialog.dismiss()
+            on_release=lambda x: self.dialog.dismiss(),
         )
         content.add_widget(ok_btn)
 
@@ -1079,7 +1069,7 @@ class changeScreen(Screen):
             type="custom",
             content_cls=content,
             size_hint=(0.8, None),
-            height="200dp"
+            height="200dp",
         )
         self.dialog.open()
 
@@ -1088,7 +1078,6 @@ class changeScreen(Screen):
             self.ids.email.text = ""
 
     def start_password_reset(self, email):
-        # Step 1: Validate email exists and has 2FA configured
         if not email.strip():
             self.show_popup("Error", "Please enter an email address.")
             return
@@ -1097,7 +1086,7 @@ class changeScreen(Screen):
             self.show_popup("Error", "Please enter a valid email address.")
             return
 
-        database = "users.db"
+        database = DB_PATH
         try:
             with sqlite3.connect(database) as conn:
                 ensure_db_tables(conn)
@@ -1113,19 +1102,22 @@ class changeScreen(Screen):
                     return
 
                 if not row[0]:
-                    self.show_popup("Error", "This account does not have 2FA configured.")
+                    self.show_popup(
+                        "Error", "This account does not have 2FA configured."
+                    )
                     return
 
-                # Email exists and has 2FA - proceed to TOTP verification
                 self.pending_reset_email = email
                 self.show_totp_modal_for_reset()
-                self.show_popup("2FA Verification", "Enter the 6-digit code from your authenticator.")
+                self.show_popup(
+                    "2FA Verification",
+                    "Enter the 6-digit code from your authenticator.",
+                )
 
         except sqlite3.Error as e:
             self.show_popup("Error", f"Database error: {e}")
 
     def show_totp_modal_for_reset(self):
-        # Show TOTP verification modal
         if self.totp_modal:
             try:
                 self.totp_modal.dismiss()
@@ -1150,12 +1142,11 @@ class changeScreen(Screen):
             self.totp_modal = None
 
     def verify_2fa_for_reset(self, code_text):
-        # Step 2: Verify TOTP code
         if not self.pending_reset_email:
             self.show_popup("Error", "No email in reset flow.")
             return
 
-        database = "users.db"
+        database = DB_PATH
         try:
             with sqlite3.connect(database) as conn:
                 cursor = conn.cursor()
@@ -1171,7 +1162,6 @@ class changeScreen(Screen):
 
                 secret = row[0]
                 if pyotp.TOTP(secret).verify(code_text.strip(), valid_window=1):
-                    # 2FA verified - show password reset modal
                     self.hide_totp_modal()
                     self.show_password_modal()
                 else:
@@ -1181,7 +1171,6 @@ class changeScreen(Screen):
             self.show_popup("Error", f"Database error: {e}")
 
     def show_password_modal(self):
-        # Show password entry modal
         password_modal = self.build_password_modal()
         try:
             self.modal_password_input.text = ""
@@ -1190,11 +1179,10 @@ class changeScreen(Screen):
         except Exception:
             pass
         password_modal.open()
-        # Store reference for later dismissal
         self._current_password_modal = password_modal
 
     def hide_password_modal(self):
-        if hasattr(self, '_current_password_modal'):
+        if hasattr(self, "_current_password_modal"):
             try:
                 self._current_password_modal.dismiss()
             except Exception:
@@ -1202,7 +1190,6 @@ class changeScreen(Screen):
             self._current_password_modal = None
 
     def complete_password_reset(self, new_pwd, confirm_pwd):
-        # Step 3: Validate and reset password
         if not new_pwd or not confirm_pwd:
             self.show_popup("Error", "Please enter and confirm your password.")
             return
@@ -1211,8 +1198,7 @@ class changeScreen(Screen):
             self.show_popup("Error", "Passwords do not match.")
             return
 
-        # Validate password strength
-        pattern = r'^(?=.*[A-Z])(?=.*[0-9])(?=.*[!@#$%^&*(),.?":{}|<>]).{8,}$'
+        pattern = r"^(?=.*[A-Z])(?=.*[0-9])(?=.*[!@#$%^&*(),.?\":{}|<>]).{8,}$"
         if not re.match(pattern, new_pwd):
             self.show_popup(
                 "Error",
@@ -1220,8 +1206,7 @@ class changeScreen(Screen):
             )
             return
 
-        # Hash and update password in database
-        database = "users.db"
+        database = DB_PATH
         try:
             new_hash = ph.hash(new_pwd)
             with sqlite3.connect(database) as conn:
@@ -1233,44 +1218,186 @@ class changeScreen(Screen):
                 )
                 conn.commit()
 
-            # Success - cleanup and return to home
             self.pending_reset_email = None
             self.pending_new_password = None
             self.clear_fields()
             self.hide_password_modal()
-            self.show_popup("Success", "Password reset successfully! You can now login with your new password.")
+            self.show_popup(
+                "Success",
+                "Password reset successfully! You can now login with your new password.",
+            )
             self.manager.current = "home"
 
         except sqlite3.Error as e:
             self.show_popup("Error", f"Database error: {e}")
 
 
+# --------- New AI-related screens ---------
+class TranscribeScreen(Screen):
+    dialog = None
+    working = False
+
+    def show_popup(self, title, message):
+        if self.dialog:
+            try:
+                self.dialog.dismiss()
+            except Exception:
+                pass
+
+        from kivymd.uix.boxlayout import MDBoxLayout
+
+        content = MDBoxLayout(
+            orientation="vertical",
+            padding="16dp",
+            spacing="12dp",
+            size_hint_y=None,
+            height="160dp",
+        )
+
+        msg_label = MDLabel(
+            text=message,
+            theme_text_color="Custom",
+            text_color=[1, 1, 1, 0.87],
+            font_size="14dp",
+            size_hint_y=None,
+            height="80dp",
+            halign="left",
+            valign="top",
+        )
+        content.add_widget(msg_label)
+
+        ok_btn = MDRaisedButton(
+            text="OK",
+            size_hint_x=1,
+            on_release=lambda x: self.dialog.dismiss(),
+        )
+        content.add_widget(ok_btn)
+
+        self.dialog = MDDialog(
+            title=title,
+            type="custom",
+            content_cls=content,
+            size_hint=(0.9, None),
+            height="220dp",
+        )
+        self.dialog.open()
+
+    def start_transcription(self, audio_path_text: str):
+        if self.working:
+            return
+
+        app = MDApp.get_running_app()
+        if not getattr(app, "ai", None):
+            self.show_popup("AI Error", "AI backend is not initialized.")
+            return
+
+        audio_path = audio_path_text.strip() or str(
+            BACKEND_DIR / "transcription_test.wav"
+        )
+
+        if not Path(audio_path).is_file():
+            self.show_popup("File Error", f"Audio file not found:\n{audio_path}")
+            return
+
+        self.working = True
+        self.ids.transcribe_button.text = "Working..."
+        self.ids.transcribe_button.disabled = True
+        self.ids.summary_output.text = ""
+
+        def worker():
+            try:
+                transcript = app.ai.transcribe(audio_path)
+                summary = app.ai.summarize(transcript)
+            except Exception as e:
+                Clock.schedule_once(
+                    lambda dt: self.show_popup("AI Error", f"{e}")
+                )
+                Clock.schedule_once(lambda dt: self._reset_button_state())
+                return
+
+            def update_ui(dt):
+                # show summary in the text box
+                self.ids.summary_output.text = summary
+                # persist in app history for storage screen
+                app.meeting_history.append(
+                    {
+                        "audio_path": audio_path,
+                        "transcript": transcript,
+                        "summary": summary,
+                        "timestamp": datetime.datetime.utcnow().isoformat(
+                            timespec="seconds"
+                        ),
+                    }
+                )
+                self._reset_button_state()
+
+            Clock.schedule_once(update_ui)
+
+        threading.Thread(target=worker, daemon=True).start()
+
+    def _reset_button_state(self):
+        self.working = False
+        self.ids.transcribe_button.text = "Transcribe"
+        self.ids.transcribe_button.disabled = False
+
+
+class StorageScreen(Screen):
+    def on_pre_enter(self, *args):
+        self.refresh_history()
+
+    def refresh_history(self):
+        app = MDApp.get_running_app()
+        items = app.meeting_history
+        if not items:
+            self.ids.storage_label.text = "No stored transcriptions yet."
+            return
+
+        lines = []
+        for idx, item in enumerate(items, start=1):
+            lines.append(
+                f"[b]#{idx}[/b]  ({item.get('timestamp','')})\n"
+                f"[i]{item.get('audio_path','')}[/i]\n"
+                f"{item.get('summary','')}\n"
+                "----------------------------------------"
+            )
+        self.ids.storage_label.text = "\n".join(lines)
+
+
+class SettingsScreen(Screen):
+    pass
+
+
+class HelpScreen(Screen):
+    pass
+
+
 # ---------------- App ----------------
 class MyApp(MDApp):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.current_session_token = None
+        self.ai = None
+        self.meeting_history = []
+
     def build(self):
         self.title = "VaultScribe"
 
-        # Ensure Kivy knows where to find assets before we load the KV file
         try:
             resource_add_path(str(ASSETS_DIR))
         except Exception:
             pass
 
-        # Load KV after assets path is registered so relative image sources resolve
         try:
             Builder.load_file(str(KV_PATH))
         except Exception:
-            # If KV fails to load here, the app will still start but UI may be broken
             pass
 
         self._set_window_icon()
 
-        # Ensure DB and tables exist on startup
         try:
             with sqlite3.connect(DB_PATH) as conn:
                 ensure_db_tables(conn)
         except sqlite3.Error:
-            # If DB can't be created, let the rest of the app run and show DB errors on operations
             pass
 
         self.theme_cls.theme_style = "Dark"
@@ -1281,26 +1408,43 @@ class MyApp(MDApp):
         sm.add_widget(sScreen(name="sScreen"))
         sm.add_widget(signUp(name="signUp"))
         sm.add_widget(changeScreen(name="changeScreen"))
+        sm.add_widget(TranscribeScreen(name="transcribeScreen"))
+        sm.add_widget(StorageScreen(name="storageScreen"))
+        sm.add_widget(SettingsScreen(name="settingsScreen"))
+        sm.add_widget(HelpScreen(name="helpScreen"))
         return sm
 
+    def on_start(self):
+        # init AI backend
+        try:
+            # Optionally override key from env:
+            # api_key = os.getenv("OPENROUTER_API_KEY")
+            # self.ai = AISummarizerTranscriber(
+            #     model_dir=str(BACKEND_DIR / "whisper"),
+            #     openrouter_api_key=api_key,
+            # )
+            self.ai = AISummarizerTranscriber(
+                model_dir=str(BACKEND_DIR / "whisper")
+            )
+            print("[ai] AISummarizerTranscriber initialized")
+        except Exception as e:
+            print("[ai] Failed to initialize backend:", e)
+            self.ai = None
+
     def _set_window_icon(self):
-        """Set a re liable desktop window icon (ICO preferred on Windows)."""
-        # Allow kivy to find assets by name
         resource_add_path(str(ASSETS_DIR))
 
-        # Try ICO first, then PNG fallbacks
         for candidate in ("icon.ico", "icon_256.png", "icon.png"):
             path = resource_find(candidate)
             if path:
                 try:
-                    Window.set_icon(path)  # desktop window icon
-                    self.icon = path       # app icon in some contexts/packagers
+                    Window.set_icon(path)
+                    self.icon = path
                     return
                 except Exception:
-                    pass  # try next option
+                    pass
 
     def take_shot(self, name="screen"):
-        # Saves to ../assets/<name>.png
         path = ASSETS_DIR / f"{name}.png"
         Window.screenshot(name=str(path))
 
